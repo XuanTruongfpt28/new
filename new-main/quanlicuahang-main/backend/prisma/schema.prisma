@@ -22,15 +22,16 @@ model Customer {
   id            Int      @id @default(autoincrement())
   fullName      String
   phone         String?
-  address       String?  // Cột Địa chỉ
+  address       String?
   vehicleName   String?
+  color         String?  // Cột Màu xe
   price         Int?
   staffName     String?
   branchName    String?
   imageUrl      String?
-  frameNumber   String?  // Số Khung (AI tự quét)
-  batteryNumber String?  // Số Acquy (AI tự quét)
-  formTimestamp String?  // Ngày mua (dd/MM/yyyy)
+  frameNumber   String?
+  batteryNumber String?
+  formTimestamp String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

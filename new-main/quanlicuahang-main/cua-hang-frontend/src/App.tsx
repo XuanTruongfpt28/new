@@ -36,7 +36,6 @@ dayjs.extend(customParseFormat);
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-// Cấu hình URL gọi API động theo môi trường (mặc định lấy URL backend Vercel)
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
 export interface Customer {
@@ -47,6 +46,7 @@ export interface Customer {
   brand?: string;
   model?: string;
   vehicleName?: string;
+  color?: string;
   price?: number;
   staffName?: string;
   branchName?: string;
@@ -57,7 +57,6 @@ export interface Customer {
   createdAt?: string;
 }
 
-// Component mẫu in hợp đồng (chỉ kích hoạt khi bấm In)
 const ContractPrint = ({ customer }: { customer: Customer | null }) => {
   if (!customer) return null;
   return (
@@ -79,11 +78,12 @@ const ContractPrint = ({ customer }: { customer: Customer | null }) => {
       <p><strong>Số điện thoại:</strong> {customer.phone}</p>
       <p><strong>Địa chỉ:</strong> {customer.address || '---'}</p>
       <p><strong>Loại xe:</strong> {customer.vehicleName || [customer.brand, customer.model].filter(Boolean).join(' ')}</p>
+      <p><strong>Màu sắc:</strong> {customer.color || '---'}</p>
       <p><strong>Số khung:</strong> {customer.frameNumber || '---'}</p>
       <p><strong>Số ắc quy / Pin:</strong> {customer.batteryNumber || '---'}</p>
       <p><strong>Giá bán:</strong> {customer.price ? customer.price.toLocaleString('vi-VN') + ' VNĐ' : '---'}</p>
       <p><strong>Chi nhánh:</strong> {customer.branchName || '---'}</p>
-      <p><strong>Nhân viên phụ trách:</strong> {customer.staffName || '---'}</p>
+      <p><strong>Nhân viên:</strong> {customer.staffName || '---'}</p>
       <p><strong>Thời gian mua:</strong> {customer.formTimestamp || dayjs().format('DD/MM/YYYY')}</p>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 60 }}>
         <div style={{ textAlign: 'center' }}>
@@ -104,18 +104,13 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [searchText, setSearchText] = useState<string>('');
 
-  // State Khách hàng chọn để In hợp đồng
   const [selectedCustomerForPrint, setSelectedCustomerForPrint] = useState<Customer | null>(null);
-
-  // State Modal Thêm/Sửa
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // State Modal Xuất Excel
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [exportForm] = Form.useForm();
-
   const [form] = Form.useForm();
 
   const fetchCustomers = async () => {
@@ -139,24 +134,18 @@ export default function App() {
     fetchCustomers();
   }, []);
 
-  // Lấy danh sách Nhân viên duy nhất
   const staffOptions = useMemo(() => {
     const staffSet = new Set<string>();
     customers.forEach((c) => {
-      if (c.staffName && c.staffName.trim()) {
-        staffSet.add(c.staffName.trim());
-      }
+      if (c.staffName && c.staffName.trim()) staffSet.add(c.staffName.trim());
     });
     return Array.from(staffSet).map((name) => ({ label: name, value: name }));
   }, [customers]);
 
-  // Lấy danh sách Chi nhánh duy nhất
   const branchOptions = useMemo(() => {
     const branchSet = new Set<string>();
     customers.forEach((c) => {
-      if (c.branchName && c.branchName.trim()) {
-        branchSet.add(c.branchName.trim());
-      }
+      if (c.branchName && c.branchName.trim()) branchSet.add(c.branchName.trim());
     });
     return Array.from(branchSet).map((name) => ({ label: name, value: name }));
   }, [customers]);
@@ -179,6 +168,7 @@ export default function App() {
       address: record.address || '',
       brand,
       model,
+      color: record.color || '',
       price: record.price ? Number(record.price) : 0,
       staffName: record.staffName || '',
       branchName: record.branchName || '',
@@ -218,7 +208,6 @@ export default function App() {
     }
   };
 
-  // XỬ LÝ IN HỢP ĐỒNG
   const handlePrintContract = (record: Customer) => {
     setSelectedCustomerForPrint(record);
     setTimeout(() => {
@@ -226,10 +215,8 @@ export default function App() {
     }, 200);
   };
 
-  // XỬ LÝ XUẤT FILE EXCEL
   const handleExportExcel = (values: any) => {
     const { dateRange, staffName, branchName } = values;
-
     let filtered = [...customers];
 
     if (dateRange && dateRange[0] && dateRange[1]) {
@@ -256,16 +243,11 @@ export default function App() {
       });
     }
 
-    if (staffName) {
-      filtered = filtered.filter((item) => item.staffName === staffName);
-    }
-
-    if (branchName) {
-      filtered = filtered.filter((item) => item.branchName === branchName);
-    }
+    if (staffName) filtered = filtered.filter((item) => item.staffName === staffName);
+    if (branchName) filtered = filtered.filter((item) => item.branchName === branchName);
 
     if (filtered.length === 0) {
-      message.warning('Không tìm thấy dữ liệu phù hợp với bộ lọc!');
+      message.warning('Không tìm thấy dữ liệu phù hợp!');
       return;
     }
 
@@ -277,6 +259,7 @@ export default function App() {
       'Số Điện Thoại': item.phone || '---',
       'Địa Chỉ': item.address || '---',
       'Tên Xe / Hãng': item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || '---',
+      'Màu Sắc': item.color || '---',
       'Số Khung': item.frameNumber || '---',
       'Số Acquy': item.batteryNumber || '---',
       'Giá Bán (VNĐ)': item.price ? item.price.toLocaleString('vi-VN') : '0',
@@ -285,27 +268,15 @@ export default function App() {
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
-    const columnWidths = [
-      { wch: 6 },
-      { wch: 10 },
-      { wch: 16 },
-      { wch: 25 },
-      { wch: 15 },
-      { wch: 40 },
-      { wch: 25 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 18 },
-      { wch: 20 },
-      { wch: 18 },
+    worksheet['!cols'] = [
+      { wch: 6 }, { wch: 10 }, { wch: 16 }, { wch: 25 }, { wch: 15 },
+      { wch: 40 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 },
+      { wch: 18 }, { wch: 20 }, { wch: 18 },
     ];
-    worksheet['!cols'] = columnWidths;
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'DanhSachKhachHang');
-
-    const fileName = `Danh_Sach_Khach_Hang_${dayjs().format('DDMMYYYY_HHmmss')}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+    XLSX.writeFile(workbook, `Danh_Sach_Khach_Hang_${dayjs().format('DDMMYYYY_HHmmss')}.xlsx`);
 
     message.success(`Đã xuất thành công ${filtered.length} dòng dữ liệu sang Excel!`);
     setIsExportModalOpen(false);
@@ -318,6 +289,7 @@ export default function App() {
       (item.fullName && item.fullName.toLowerCase().includes(searchLower)) ||
       (item.phone && item.phone.includes(searchLower)) ||
       (item.address && item.address.toLowerCase().includes(searchLower)) ||
+      (item.color && item.color.toLowerCase().includes(searchLower)) ||
       (fullVehicleName && fullVehicleName.toLowerCase().includes(searchLower)) ||
       (item.frameNumber && item.frameNumber.toLowerCase().includes(searchLower)) ||
       (item.batteryNumber && item.batteryNumber.toLowerCase().includes(searchLower)) ||
@@ -380,9 +352,7 @@ export default function App() {
       title: 'ĐỊA CHỈ',
       dataIndex: 'address',
       key: 'address',
-      render: (address?: string) => (
-        <Text style={{ fontSize: '13px' }}>{address || '---'}</Text>
-      ),
+      render: (address?: string) => <Text style={{ fontSize: '13px' }}>{address || '---'}</Text>,
     },
     {
       title: 'TÊN XE / HÃNG',
@@ -392,6 +362,14 @@ export default function App() {
         const name = record.vehicleName || [record.brand, record.model].filter(Boolean).join(' ');
         return <strong>{name || '---'}</strong>;
       },
+    },
+    {
+      title: 'MÀU XE',
+      dataIndex: 'color',
+      key: 'color',
+      render: (color?: string) => (
+        color ? <Tag color="cyan">{color}</Tag> : <Text type="secondary">---</Text>
+      ),
     },
     {
       title: 'SỐ KHUNG',
@@ -477,7 +455,7 @@ export default function App() {
             <Title level={3} style={{ margin: 0 }}>
               Quản Lý Khách Hàng
             </Title>
-            <Text type="secondary">Theo dõi thông tin mua xe, địa chỉ, Số Khung & Số Acquy</Text>
+            <Text type="secondary">Theo dõi thông tin mua xe, địa chỉ, Màu sắc, Số Khung & Số Acquy</Text>
           </div>
           <Space>
             <Button
@@ -502,7 +480,7 @@ export default function App() {
 
         <div style={{ marginBottom: 20 }}>
           <Input
-            placeholder="Tìm theo tên khách, SĐT, địa chỉ, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
+            placeholder="Tìm theo tên khách, SĐT, địa chỉ, màu sắc, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
             value={searchText}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
@@ -545,6 +523,9 @@ export default function App() {
           </Form.Item>
           <Form.Item name="model" label="Model xe">
             <Input />
+          </Form.Item>
+          <Form.Item name="color" label="Màu xe">
+            <Input placeholder="Nhập màu xe (vd: Xám bóng, Trắng đen...)" />
           </Form.Item>
           <Form.Item name="frameNumber" label="Số Khung">
             <Input placeholder="Nhập số khung..." />
