@@ -5,11 +5,12 @@ import app from './app';
 
 const PORT = process.env.PORT || 5000;
 
-// Chỉ lắng nghe port khi chạy môi trường local/dev
+// Lắng nghe cổng khi chạy ở môi trường Local/Development
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
-    console.log(`🚀 [SERVER] Dang chay tai http://localhost:${PORT}`);
+    console.log(`🚀 [SERVER] Server đang chạy tại: http://localhost:${PORT}`);
   });
 }
 
+// Export app để Vercel Serverless Function có thể xử lý các HTTP request
 export default app;
