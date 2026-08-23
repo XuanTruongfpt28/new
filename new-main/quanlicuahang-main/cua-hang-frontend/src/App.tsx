@@ -167,7 +167,7 @@ const printContractInNewTab = (customer: Customer) => {
         <div>CN1: Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp</div>
         <div>CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</div>
         <div>CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang</div>
-
+        <div>CN4: 293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang</div>
         <!-- BÊN B -->
         <div style="margin-top: 3px;"><strong>Bên B ( Bên mua xe):</strong></div>
         <div>
@@ -176,7 +176,7 @@ const printContractInNewTab = (customer: Customer) => {
           Điện thoại: <strong>${dienThoai || '.........................'}</strong>
         </div>
         <div>Địa chỉ: <strong>${diaChi || '.......................................................................................................................................'}</strong></div>
-        <div>CCCD số: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ngày cấp: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Nơi cấp: Cục Cảnh sát quản lý hành chính về TTXH</div>
+        <div>CCCD số: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ngày cấp: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Nơi cấp: Cục Cảnh sát quản lý hành chính về TTXH</div>
 
         <div style="margin: 3px 0 2px 0;">
           Sau khi bàn bạc và đi đến thống nhất, bên A đồng ý bán xe và bên B đồng ý mua xe với các điều khoản sau:
@@ -210,7 +210,7 @@ const printContractInNewTab = (customer: Customer) => {
                 <div>* Đã cọc:</div>
                 <div>* Giá xe: <strong>${giaXe}</strong></div>
                 <div>* <strong>Tổng thanh toán: ${tongThanhToan}</strong></div>
-                <div>Hình thức thanh toán: *Trả trước: &nbsp;&nbsp;&nbsp;&nbsp; *Còn lại:</div>
+                <div>Hình thức thanh toán:<br /> *Trả trước: &nbsp;&nbsp;&nbsp;&nbsp;<br /> *Còn lại:</div><br />
                 <div>* Phụ kiện theo xe: Bộ sạc</div>
               </td>
               <td>
@@ -230,10 +230,10 @@ const printContractInNewTab = (customer: Customer) => {
             </tr>
             <tr>
               <td>
-                <div class="bold">BMX, PEGA, DK, SONSU…<br />JP, UNI</div>
-                <div style="margin: 2px 0;">Bình bảo hành 12 tháng, phù 06 tháng ( nên xem hướng dẫn sử dụng ắc quy).</div>
-                <div style="margin: 2px 0;">Động cơ, IC, bộ sạc bảo hành 12 tháng.</div>
-                <div style="margin: 2px 0;">Bình bảo hành 12 tháng, phù 09 tháng ( nên xem hướng dẫn sử dụng ắc quy).</div>
+                <div class="bold">BMX, PEGA, DK, SONSU…<br />JP, UNI</div><br />
+                <div style="margin: 2px 0;">Bình bảo hành 12 tháng, phù 06 tháng ( nên xem hướng dẫn sử dụng ắc quy).</div><br />
+                <div style="margin: 2px 0;">Động cơ, IC, bộ sạc bảo hành 12 tháng.</div><br />
+                <div style="margin: 2px 0;">Bình bảo hành 12 tháng, phù 09 tháng ( nên xem hướng dẫn sử dụng ắc quy).</div><br />
               </td>
               <td>
                 <div class="bold">IV: Thoả thuận và thống nhất giữa hai bên như sau</div>
