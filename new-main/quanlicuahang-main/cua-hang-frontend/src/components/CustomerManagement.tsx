@@ -30,41 +30,19 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
-import { ContractPrint } from './ContractPrint';
+import { printContractDirectly, type Customer } from './ContractPrint';
 
 dayjs.extend(customParseFormat);
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-// Cấu hình URL gọi API động theo môi trường (ưu tiên biến môi trường, mặc định lấy URL Vercel)
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
-export interface Customer {
-  id: number;
-  fullName: string;
-  phone: string;
-  address?: string;
-  brand?: string;
-  model?: string;
-  vehicleName?: string;
-  price?: number;
-  staffName?: string;
-  branchName?: string;
-  frameNumber?: string;
-  batteryNumber?: string;
-  imageUrl?: string;
-  formTimestamp?: string;
-  createdAt?: string;
-}
-
-export const CustomerManagement = () => {
+export default function CustomerManagement() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [searchText, setSearchText] = useState<string>('');
-
-  // State Khách hàng chọn để In hợp đồng
-  const [selectedCustomerForPrint, setSelectedCustomerForPrint] = useState<Customer | null>(null);
 
   // State Modal Thêm/Sửa
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -74,7 +52,6 @@ export const CustomerManagement = () => {
   // State Modal Xuất Excel
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [exportForm] = Form.useForm();
-
   const [form] = Form.useForm();
 
   const fetchCustomers = async () => {
@@ -98,24 +75,20 @@ export const CustomerManagement = () => {
     fetchCustomers();
   }, []);
 
-  // Lấy danh sách Nhân viên duy nhất
+  // Lọc danh sách nhân viên duy nhất
   const staffOptions = useMemo(() => {
     const staffSet = new Set<string>();
     customers.forEach((c) => {
-      if (c.staffName && c.staffName.trim()) {
-        staffSet.add(c.staffName.trim());
-      }
+      if (c.staffName && c.staffName.trim()) staffSet.add(c.staffName.trim());
     });
     return Array.from(staffSet).map((name) => ({ label: name, value: name }));
   }, [customers]);
 
-  // Lấy danh sách Chi nhánh duy nhất
+  // Lọc danh sách chi nhánh duy nhất
   const branchOptions = useMemo(() => {
     const branchSet = new Set<string>();
     customers.forEach((c) => {
-      if (c.branchName && c.branchName.trim()) {
-        branchSet.add(c.branchName.trim());
-      }
+      if (c.branchName && c.branchName.trim()) branchSet.add(c.branchName.trim());
     });
     return Array.from(branchSet).map((name) => ({ label: name, value: name }));
   }, [customers]);
@@ -133,24 +106,25 @@ export const CustomerManagement = () => {
     const model = record.model || nameParts.slice(1).join(' ') || '';
 
     form.setFieldsValue({
-      fullName: record.fullName || '',
-      phone: record.phone || '',
-      address: record.address || '',
+      fullName: record.fullName || record.ho_ten || '',
+      phone: record.phone || record.dien_thoai || '',
+      address: record.address || record.dia_chi || '',
       brand,
       model,
+      color: record.color || record.mau || '',
       price: record.price ? Number(record.price) : 0,
       staffName: record.staffName || '',
       branchName: record.branchName || '',
-      frameNumber: record.frameNumber || '',
-      batteryNumber: record.batteryNumber || '',
+      frameNumber: record.frameNumber || record.so_khung || '',
+      batteryNumber: record.batteryNumber || record.so_pin || '',
     });
     setIsModalOpen(true);
   };
 
-  const handleFormSubmit = async (values: Omit<Customer, 'id'>) => {
+  const handleFormSubmit = async (values: any) => {
     setSubmitting(true);
     try {
-      if (editingCustomer) {
+      if (editingCustomer && editingCustomer.id) {
         await axios.put(`${BASE_API_URL}/customers/${editingCustomer.id}`, values);
         message.success('Cập nhật thành công!');
       } else {
@@ -167,7 +141,8 @@ export const CustomerManagement = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id?: number) => {
+    if (!id) return;
     try {
       await axios.delete(`${BASE_API_URL}/customers/${id}`);
       message.success('Đã xóa thành công!');
@@ -177,18 +152,14 @@ export const CustomerManagement = () => {
     }
   };
 
-  // XỬ LÝ LỆNH IN HỢP ĐỒNG
-  const handlePrintContract = (record: Customer) => {
-    setSelectedCustomerForPrint(record);
-    setTimeout(() => {
-      window.print();
-    }, 200);
+  // Nút In hợp đồng: Gọi trực tiếp printContractDirectly độc lập
+  const handlePrint = (record: Customer) => {
+    printContractDirectly(record);
   };
 
-  // XỬ LÝ XUẤT FILE EXCEL
+  // Xuất file Excel
   const handleExportExcel = (values: any) => {
     const { dateRange, staffName, branchName } = values;
-
     let filtered = [...customers];
 
     if (dateRange && dateRange[0] && dateRange[1]) {
@@ -215,13 +186,8 @@ export const CustomerManagement = () => {
       });
     }
 
-    if (staffName) {
-      filtered = filtered.filter((item) => item.staffName === staffName);
-    }
-
-    if (branchName) {
-      filtered = filtered.filter((item) => item.branchName === branchName);
-    }
+    if (staffName) filtered = filtered.filter((item) => item.staffName === staffName);
+    if (branchName) filtered = filtered.filter((item) => item.branchName === branchName);
 
     if (filtered.length === 0) {
       message.warning('Không tìm thấy dữ liệu phù hợp với bộ lọc!');
@@ -230,41 +196,30 @@ export const CustomerManagement = () => {
 
     const excelData = filtered.map((item, index) => ({
       'STT': index + 1,
-      'ID Đơn': `#${item.id}`,
+      'ID Đơn': `#${item.id || index + 1}`,
       'Thời Gian Mua': item.formTimestamp || (item.createdAt ? dayjs(item.createdAt).format('DD/MM/YYYY') : '---'),
-      'Khách Hàng': item.fullName || '---',
-      'Số Điện Thoại': item.phone || '---',
-      'Địa Chỉ': item.address || '---',
-      'Tên Xe / Hãng': item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || '---',
-      'Số Khung': item.frameNumber || '---',
-      'Số Acquy': item.batteryNumber || '---',
-      'Giá Bán (VNĐ)': item.price ? item.price.toLocaleString('vi-VN') : '0',
+      'Khách Hàng': item.fullName || item.ho_ten || '---',
+      'Số Điện Thoại': item.phone || item.dien_thoai || '---',
+      'Địa Chỉ': item.address || item.dia_chi || '---',
+      'Tên Xe / Hãng': item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || item.model || '---',
+      'Màu Sắc': item.color || item.mau || '---',
+      'Số Khung': item.frameNumber || item.so_khung || '---',
+      'Số Acquy': item.batteryNumber || item.so_pin || '---',
+      'Giá Bán (VNĐ)': item.price ? Number(item.price).toLocaleString('vi-VN') : '0',
       'Nhân Viên': item.staffName || '---',
       'Chi Nhánh': item.branchName || '---',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
-    const columnWidths = [
-      { wch: 6 },
-      { wch: 10 },
-      { wch: 16 },
-      { wch: 25 },
-      { wch: 15 },
-      { wch: 40 },
-      { wch: 25 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 18 },
-      { wch: 20 },
-      { wch: 18 },
+    worksheet['!cols'] = [
+      { wch: 6 }, { wch: 10 }, { wch: 16 }, { wch: 25 }, { wch: 15 },
+      { wch: 40 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 },
+      { wch: 18 }, { wch: 20 }, { wch: 18 },
     ];
-    worksheet['!cols'] = columnWidths;
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'DanhSachKhachHang');
-
-    const fileName = `Danh_Sach_Khach_Hang_${dayjs().format('DDMMYYYY_HHmmss')}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+    XLSX.writeFile(workbook, `Danh_Sach_Khach_Hang_${dayjs().format('DDMMYYYY_HHmmss')}.xlsx`);
 
     message.success(`Đã xuất thành công ${filtered.length} dòng dữ liệu sang Excel!`);
     setIsExportModalOpen(false);
@@ -272,14 +227,22 @@ export const CustomerManagement = () => {
 
   const filteredCustomers = customers.filter((item) => {
     const searchLower = searchText.toLowerCase();
-    const fullVehicleName = item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ');
+    const fullVehicleName = item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || item.model || '';
+    const name = item.fullName || item.ho_ten || '';
+    const phone = item.phone || item.dien_thoai || '';
+    const address = item.address || item.dia_chi || '';
+    const color = item.color || item.mau || '';
+    const frameNumber = item.frameNumber || item.so_khung || '';
+    const batteryNumber = item.batteryNumber || item.so_pin || '';
+
     return (
-      (item.fullName && item.fullName.toLowerCase().includes(searchLower)) ||
-      (item.phone && item.phone.includes(searchLower)) ||
-      (item.address && item.address.toLowerCase().includes(searchLower)) ||
-      (fullVehicleName && fullVehicleName.toLowerCase().includes(searchLower)) ||
-      (item.frameNumber && item.frameNumber.toLowerCase().includes(searchLower)) ||
-      (item.batteryNumber && item.batteryNumber.toLowerCase().includes(searchLower)) ||
+      name.toLowerCase().includes(searchLower) ||
+      phone.includes(searchLower) ||
+      address.toLowerCase().includes(searchLower) ||
+      color.toLowerCase().includes(searchLower) ||
+      fullVehicleName.toLowerCase().includes(searchLower) ||
+      frameNumber.toLowerCase().includes(searchLower) ||
+      batteryNumber.toLowerCase().includes(searchLower) ||
       (item.branchName && item.branchName.toLowerCase().includes(searchLower))
     );
   });
@@ -289,8 +252,8 @@ export const CustomerManagement = () => {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
-      render: (id: number) => <Text type="secondary">#{id}</Text>,
-      width: 50,
+      render: (id?: number) => <Text type="secondary">#{id || '---'}</Text>,
+      width: 60,
     },
     {
       title: 'THỜI GIAN MUA',
@@ -323,24 +286,27 @@ export const CustomerManagement = () => {
       title: 'KHÁCH HÀNG',
       dataIndex: 'fullName',
       key: 'fullName',
-      render: (text: string) => <strong>{text || '---'}</strong>,
+      render: (_: any, record: Customer) => <strong>{record.fullName || record.ho_ten || '---'}</strong>,
     },
     {
       title: 'SỐ ĐIỆN THOẠI',
       dataIndex: 'phone',
       key: 'phone',
-      render: (phone: string) => (
-        <a href={`tel:${phone}`} style={{ color: '#1677ff', fontWeight: 500 }}>
-          {phone || '---'}
-        </a>
-      ),
+      render: (_: any, record: Customer) => {
+        const phone = record.phone || record.dien_thoai;
+        return (
+          <a href={`tel:${phone}`} style={{ color: '#1677ff', fontWeight: 500 }}>
+            {phone || '---'}
+          </a>
+        );
+      },
     },
     {
       title: 'ĐỊA CHỈ',
       dataIndex: 'address',
       key: 'address',
-      render: (address?: string) => (
-        <Text style={{ fontSize: '13px' }}>{address || '---'}</Text>
+      render: (_: any, record: Customer) => (
+        <Text style={{ fontSize: '13px' }}>{record.address || record.dia_chi || '---'}</Text>
       ),
     },
     {
@@ -348,30 +314,51 @@ export const CustomerManagement = () => {
       dataIndex: 'vehicleName',
       key: 'vehicleName',
       render: (_: any, record: Customer) => {
-        const name = record.vehicleName || [record.brand, record.model].filter(Boolean).join(' ');
+        const name = record.vehicleName || [record.brand, record.model].filter(Boolean).join(' ') || record.model;
         return <strong>{name || '---'}</strong>;
+      },
+    },
+    {
+      title: 'MÀU XE',
+      dataIndex: 'color',
+      key: 'color',
+      render: (_: any, record: Customer) => {
+        const color = record.color || record.mau;
+        return color ? <Tag color="cyan">{color}</Tag> : <Text type="secondary">---</Text>;
       },
     },
     {
       title: 'SỐ KHUNG',
       dataIndex: 'frameNumber',
       key: 'frameNumber',
-      render: (text?: string) =>
-        text ? <Text code style={{ color: '#d46b08', fontWeight: 600 }}>{text}</Text> : <Text type="secondary">---</Text>,
+      render: (_: any, record: Customer) => {
+        const frame = record.frameNumber || record.so_khung;
+        return frame ? (
+          <Text code style={{ color: '#d46b08', fontWeight: 600 }}>{frame}</Text>
+        ) : (
+          <Text type="secondary">---</Text>
+        );
+      },
     },
     {
       title: 'SỐ ACQUY',
       dataIndex: 'batteryNumber',
       key: 'batteryNumber',
-      render: (text?: string) =>
-        text ? <Text code style={{ color: '#389e0d', fontWeight: 600 }}>{text}</Text> : <Text type="secondary">---</Text>,
+      render: (_: any, record: Customer) => {
+        const bat = record.batteryNumber || record.so_pin;
+        return bat ? (
+          <Text code style={{ color: '#389e0d', fontWeight: 600 }}>{bat}</Text>
+        ) : (
+          <Text type="secondary">---</Text>
+        );
+      },
     },
     {
       title: 'GIÁ BÁN',
       dataIndex: 'price',
       key: 'price',
-      render: (price?: number) => {
-        const numPrice = Number(price);
+      render: (_: any, record: Customer) => {
+        const numPrice = Number(record.price || record.gia_xe);
         if (!isNaN(numPrice) && numPrice > 0) {
           return (
             <Text type="success" style={{ fontWeight: 600 }}>
@@ -395,14 +382,14 @@ export const CustomerManagement = () => {
     {
       title: 'THAO TÁC',
       key: 'actions',
-      render: (_, record: Customer) => (
+      render: (_: any, record: Customer) => (
         <Space size="small">
           <Button
             type="primary"
             size="small"
             icon={<PrinterOutlined />}
             style={{ backgroundColor: '#722ed1', borderColor: '#722ed1', borderRadius: 4 }}
-            onClick={() => handlePrintContract(record)}
+            onClick={() => handlePrint(record)}
           >
             In HD
           </Button>
@@ -411,7 +398,7 @@ export const CustomerManagement = () => {
           </Button>
           <Popconfirm
             title="Xác nhận xóa"
-            description="Bạn có chắc chắn muốn xóa?"
+            description="Bạn có chắc chắn muốn xóa khách hàng này?"
             onConfirm={() => handleDelete(record.id)}
             okText="Xóa"
             cancelText="Hủy"
@@ -428,15 +415,13 @@ export const CustomerManagement = () => {
 
   return (
     <div style={{ padding: '24px', backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
-      <ContractPrint customer={selectedCustomerForPrint} />
-
       <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
             <Title level={3} style={{ margin: 0 }}>
               Quản Lý Khách Hàng
             </Title>
-            <Text type="secondary">Theo dõi thông tin mua xe, địa chỉ, Số Khung & Số Acquy</Text>
+            <Text type="secondary">Theo dõi thông tin mua xe, địa chỉ, Màu sắc, Số Khung & Số Acquy</Text>
           </div>
           <Space>
             <Button
@@ -461,7 +446,7 @@ export const CustomerManagement = () => {
 
         <div style={{ marginBottom: 20 }}>
           <Input
-            placeholder="Tìm theo tên khách, SĐT, địa chỉ, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
+            placeholder="Tìm theo tên khách, SĐT, địa chỉ, màu sắc, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
             value={searchText}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
@@ -474,7 +459,7 @@ export const CustomerManagement = () => {
         <Table<Customer>
           dataSource={filteredCustomers}
           columns={columns}
-          rowKey="id"
+          rowKey={(record) => record.id || Math.random()}
           loading={loading}
           pagination={{ pageSize: 10 }}
           scroll={{ x: 'max-content' }}
@@ -504,6 +489,9 @@ export const CustomerManagement = () => {
           </Form.Item>
           <Form.Item name="model" label="Model xe">
             <Input />
+          </Form.Item>
+          <Form.Item name="color" label="Màu xe">
+            <Input placeholder="Nhập màu xe (vd: Xám bóng, Trắng đen...)" />
           </Form.Item>
           <Form.Item name="frameNumber" label="Số Khung">
             <Input placeholder="Nhập số khung..." />
@@ -577,6 +565,4 @@ export const CustomerManagement = () => {
       </Modal>
     </div>
   );
-};
-
-export default CustomerManagement;
+}

@@ -1,5 +1,3 @@
-import React from 'react';
-
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -47,18 +45,24 @@ export const printContractDirectly = (customer: Customer) => {
   const giaXe = formatMoney(customer.price || customer.gia_xe);
   const tongThanhToan = formatMoney(customer.tong_thanh_toan || customer.price || customer.gia_xe);
 
-  const printWindow = window.open('', '_blank', 'width=950,height=900');
-  if (!printWindow) {
-    alert('Trình duyệt đã chặn popup. Vui lòng cho phép popup để in hợp đồng!');
-    return;
-  }
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  document.body.appendChild(iframe);
 
-  const printContent = `
+  const doc = iframe.contentWindow?.document;
+  if (!doc) return;
+
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Hop_dong_${hoTen || 'khach_hang'}</title>
+      <title>Hop_dong_${hoTen}</title>
       <style>
         @page {
           size: A4 portrait;
@@ -69,14 +73,14 @@ export const printContractDirectly = (customer: Customer) => {
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
-        body {
+        html, body {
           margin: 0;
           padding: 0;
+          background: #fff;
           font-family: "Times New Roman", Times, serif;
           font-size: 11px;
           line-height: 1.22;
           color: #000;
-          background: #fff;
         }
         .page {
           width: 100%;
@@ -118,7 +122,6 @@ export const printContractDirectly = (customer: Customer) => {
       </style>
     </head>
     <body>
-      <!-- TRANG 1: BIÊN NHẬN KIÊM HỢP ĐỒNG BÁN XE -->
       <div class="page">
         <table style="margin-bottom: 2px;">
           <tbody>
@@ -265,7 +268,6 @@ export const printContractDirectly = (customer: Customer) => {
         </table>
       </div>
 
-      <!-- TRANG 2: PHIẾU KIỂM TRA BẢO DƯỠNG ĐỊNH KỲ -->
       <div class="page page-break">
         <div class="text-center bold" style="font-size: 13px; margin: 4px 0 6px 0;">
           PHIẾU KIỂM TRA BẢO DƯỠNG ĐỊNH KỲ (YADEA)
@@ -349,16 +351,18 @@ export const printContractDirectly = (customer: Customer) => {
     </html>
   `;
 
-  printWindow.document.open();
-  printWindow.document.write(printContent);
-  printWindow.document.close();
-  printWindow.focus();
+  doc.open();
+  doc.write(html);
+  doc.close();
 
   setTimeout(() => {
-    printWindow.print();
-    printWindow.close();
-  }, 250);
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 1000);
+  }, 200);
 };
 
-export const ContractPrint: React.FC<{ customer: any }> = () => null;
+export const ContractPrint = () => null;
 export default printContractDirectly;
