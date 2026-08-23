@@ -42,25 +42,38 @@ const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.ve
 export interface Customer {
   id?: number;
   fullName?: string;
+  ho_ten?: string;
   phone?: string;
+  dien_thoai?: string;
   address?: string;
+  dia_chi?: string;
   brand?: string;
   model?: string;
   vehicleName?: string;
   color?: string;
+  mau?: string;
   price?: number | string;
+  gia_xe?: number | string;
   staffName?: string;
+  nhan_vien?: string;
   branchName?: string;
+  chi_nhanh?: string;
   frameNumber?: string;
+  so_khung?: string;
   batteryNumber?: string;
+  so_pin?: string;
   imageUrl?: string;
   formTimestamp?: string;
+  timestamp?: string;
+  ngay_mua?: string;
+  created_at?: string;
   createdAt?: string;
+  [key: string]: any;
 }
 
-// 2. Hàm chuẩn hóa ngày mua xe gốc (DD/MM/YYYY)
-const parseDateDetails = (rawDateStr?: string) => {
-  if (!rawDateStr) {
+// 2. Hàm phân tích chính xác Ngày Mua từ dữ liệu Form
+const parseDateDetails = (customerData: any) => {
+  if (!customerData) {
     const now = new Date();
     return {
       day: String(now.getDate()).padStart(2, '0'),
@@ -70,9 +83,19 @@ const parseDateDetails = (rawDateStr?: string) => {
     };
   }
 
-  // Khớp chính xác định dạng DD/MM/YYYY từ Google Sheets
+  // Quét toàn bộ các trường ngày có thể có
+  const rawDateStr =
+    (typeof customerData === 'string' ? customerData : null) ||
+    customerData.formTimestamp ||
+    customerData.timestamp ||
+    customerData.ngay_mua ||
+    customerData.created_at ||
+    customerData.createdAt ||
+    '';
+
+  // 1. Trường hợp chuỗi có định dạng DD/MM/YYYY (ví dụ: "01/05/2026" hoặc "01/05/2026 16:22:27")
   if (rawDateStr.includes('/')) {
-    const cleanDate = rawDateStr.split(' ')[0];
+    const cleanDate = rawDateStr.split(' ')[0].trim();
     const parts = cleanDate.split('/');
     if (parts.length >= 3) {
       const d = parts[0].padStart(2, '0');
@@ -82,7 +105,31 @@ const parseDateDetails = (rawDateStr?: string) => {
     }
   }
 
-  // Khớp định dạng ISO Date nếu có
+  // 2. Trường hợp chuỗi có dấu gạch ngang (YYYY-MM-DD hoặc DD-MM-YYYY)
+  if (rawDateStr.includes('-')) {
+    const cleanDate = rawDateStr.split('T')[0].split(' ')[0].trim();
+    const parts = cleanDate.split('-');
+    if (parts.length === 3) {
+      // Dạng YYYY-MM-DD
+      if (parts[0].length === 4) {
+        return {
+          day: parts[2].padStart(2, '0'),
+          month: parts[1].padStart(2, '0'),
+          year: parts[0],
+          fullDate: `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`,
+        };
+      }
+      // Dạng DD-MM-YYYY
+      return {
+        day: parts[0].padStart(2, '0'),
+        month: parts[1].padStart(2, '0'),
+        year: parts[2],
+        fullDate: `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[2]}`,
+      };
+    }
+  }
+
+  // 3. Fallback qua Date Object
   const dateObj = new Date(rawDateStr);
   if (!isNaN(dateObj.getTime())) {
     const d = String(dateObj.getDate()).padStart(2, '0');
@@ -91,20 +138,20 @@ const parseDateDetails = (rawDateStr?: string) => {
     return { day: d, month: m, year: y, fullDate: `${d}/${m}/${y}` };
   }
 
-  return { day: '....', month: '....', year: '2026', fullDate: rawDateStr };
+  return { day: '....', month: '....', year: '2026', fullDate: '---' };
 };
 
-// 3. Hàm in hợp đồng 1 trang A4 duy nhất theo đúng ngày mua xe
+// 3. Hàm in hợp đồng 1 trang A4 chuẩn xác theo ngày mua xe của khách hàng
 const printContractInNewTab = (customer: Customer) => {
-  const { day, month, year } = parseDateDetails(customer.formTimestamp || customer.createdAt);
+  const { day, month, year } = parseDateDetails(customer);
 
-  const hoTen = customer.fullName || '';
-  const dienThoai = customer.phone || '';
-  const diaChi = customer.address || '';
+  const hoTen = customer.fullName || customer.ho_ten || '';
+  const dienThoai = customer.phone || customer.dien_thoai || '';
+  const diaChi = customer.address || customer.dia_chi || '';
   const modelXe = customer.vehicleName || [customer.brand, customer.model].filter(Boolean).join(' ') || '';
-  const mauXe = customer.color || '';
-  const soKhung = customer.frameNumber || '';
-  const soPin = customer.batteryNumber || '';
+  const mauXe = customer.color || customer.mau || '';
+  const soKhung = customer.frameNumber || customer.so_khung || '';
+  const soPin = customer.batteryNumber || customer.so_pin || '';
 
   const formatMoney = (val?: any) => {
     if (!val) return '';
@@ -112,8 +159,8 @@ const printContractInNewTab = (customer: Customer) => {
     return isNaN(num) || num === 0 ? String(val) : num.toLocaleString('vi-VN') + ' VNĐ';
   };
 
-  const giaXe = formatMoney(customer.price);
-  const tongThanhToan = formatMoney(customer.price);
+  const giaXe = formatMoney(customer.price || customer.gia_xe);
+  const tongThanhToan = formatMoney(customer.price || customer.gia_xe);
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -373,7 +420,8 @@ export default function App() {
   const staffOptions = useMemo(() => {
     const staffSet = new Set<string>();
     customers.forEach((c) => {
-      if (c.staffName && c.staffName.trim()) staffSet.add(c.staffName.trim());
+      const name = c.staffName || c.nhan_vien;
+      if (name && name.trim()) staffSet.add(name.trim());
     });
     return Array.from(staffSet).map((name) => ({ label: name, value: name }));
   }, [customers]);
@@ -381,7 +429,8 @@ export default function App() {
   const branchOptions = useMemo(() => {
     const branchSet = new Set<string>();
     customers.forEach((c) => {
-      if (c.branchName && c.branchName.trim()) branchSet.add(c.branchName.trim());
+      const name = c.branchName || c.chi_nhanh;
+      if (name && name.trim()) branchSet.add(name.trim());
     });
     return Array.from(branchSet).map((name) => ({ label: name, value: name }));
   }, [customers]);
@@ -399,17 +448,17 @@ export default function App() {
     const model = record.model || nameParts.slice(1).join(' ') || '';
 
     form.setFieldsValue({
-      fullName: record.fullName || '',
-      phone: record.phone || '',
-      address: record.address || '',
+      fullName: record.fullName || record.ho_ten || '',
+      phone: record.phone || record.dien_thoai || '',
+      address: record.address || record.dia_chi || '',
       brand,
       model,
-      color: record.color || '',
-      price: record.price ? Number(record.price) : 0,
-      staffName: record.staffName || '',
-      branchName: record.branchName || '',
-      frameNumber: record.frameNumber || '',
-      batteryNumber: record.batteryNumber || '',
+      color: record.color || record.mau || '',
+      price: record.price ? Number(record.price) : (record.gia_xe ? Number(record.gia_xe) : 0),
+      staffName: record.staffName || record.nhan_vien || '',
+      branchName: record.branchName || record.chi_nhanh || '',
+      frameNumber: record.frameNumber || record.so_khung || '',
+      batteryNumber: record.batteryNumber || record.so_pin || '',
     });
     setIsModalOpen(true);
   };
@@ -454,18 +503,12 @@ export default function App() {
       const endDate = dateRange[1].endOf('day');
 
       filtered = filtered.filter((item) => {
-        const rawTime = item.formTimestamp || item.createdAt;
-        if (!rawTime) return false;
+        const { fullDate } = parseDateDetails(item);
+        if (!fullDate || fullDate === '---') return false;
 
-        let itemDate: dayjs.Dayjs | null = null;
-        if (rawTime.includes('/')) {
-          const datePart = rawTime.split(' ')[0];
-          itemDate = dayjs(datePart, 'DD/MM/YYYY');
-        } else {
-          itemDate = dayjs(rawTime);
-        }
+        const itemDate = dayjs(fullDate, 'DD/MM/YYYY');
+        if (!itemDate.isValid()) return false;
 
-        if (!itemDate || !itemDate.isValid()) return false;
         return (
           (itemDate.isAfter(startDate) || itemDate.isSame(startDate)) &&
           (itemDate.isBefore(endDate) || itemDate.isSame(endDate))
@@ -473,8 +516,8 @@ export default function App() {
       });
     }
 
-    if (staffName) filtered = filtered.filter((item) => item.staffName === staffName);
-    if (branchName) filtered = filtered.filter((item) => item.branchName === branchName);
+    if (staffName) filtered = filtered.filter((item) => (item.staffName || item.nhan_vien) === staffName);
+    if (branchName) filtered = filtered.filter((item) => (item.branchName || item.chi_nhanh) === branchName);
 
     if (filtered.length === 0) {
       message.warning('Không tìm thấy dữ liệu phù hợp!');
@@ -482,21 +525,21 @@ export default function App() {
     }
 
     const excelData = filtered.map((item, index) => {
-      const { fullDate } = parseDateDetails(item.formTimestamp || item.createdAt);
+      const { fullDate } = parseDateDetails(item);
       return {
         'STT': index + 1,
         'ID Đơn': `#${item.id || index + 1}`,
         'Thời Gian Mua': fullDate,
-        'Khách Hàng': item.fullName || '---',
-        'Số Điện Thoại': item.phone || '---',
-        'Địa Chỉ': item.address || '---',
+        'Khách Hàng': item.fullName || item.ho_ten || '---',
+        'Số Điện Thoại': item.phone || item.dien_thoai || '---',
+        'Địa Chỉ': item.address || item.dia_chi || '---',
         'Tên Xe / Hãng': item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || '---',
-        'Màu Sắc': item.color || '---',
-        'Số Khung': item.frameNumber || '---',
-        'Số Acquy': item.batteryNumber || '---',
-        'Giá Bán (VNĐ)': item.price ? Number(item.price).toLocaleString('vi-VN') : '0',
-        'Nhân Viên': item.staffName || '---',
-        'Chi Nhánh': item.branchName || '---',
+        'Màu Sắc': item.color || item.mau || '---',
+        'Số Khung': item.frameNumber || item.so_khung || '---',
+        'Số Acquy': item.batteryNumber || item.so_pin || '---',
+        'Giá Bán (VNĐ)': item.price ? Number(item.price).toLocaleString('vi-VN') : (item.gia_xe ? Number(item.gia_xe).toLocaleString('vi-VN') : '0'),
+        'Nhân Viên': item.staffName || item.nhan_vien || '---',
+        'Chi Nhánh': item.branchName || item.chi_nhanh || '---',
       };
     });
 
@@ -518,14 +561,14 @@ export default function App() {
   const filteredCustomers = customers.filter((item) => {
     const searchLower = searchText.toLowerCase();
     const fullVehicleName = item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ');
-    const name = item.fullName || '';
-    const phone = item.phone || '';
-    const address = item.address || '';
-    const color = item.color || '';
-    const frameNumber = item.frameNumber || '';
-    const batteryNumber = item.batteryNumber || '';
-    const staff = item.staffName || '';
-    const branch = item.branchName || '';
+    const name = item.fullName || item.ho_ten || '';
+    const phone = item.phone || item.dien_thoai || '';
+    const address = item.address || item.dia_chi || '';
+    const color = item.color || item.mau || '';
+    const frameNumber = item.frameNumber || item.so_khung || '';
+    const batteryNumber = item.batteryNumber || item.so_pin || '';
+    const staff = item.staffName || item.nhan_vien || '';
+    const branch = item.branchName || item.chi_nhanh || '';
 
     return (
       name.toLowerCase().includes(searchLower) ||
@@ -552,8 +595,8 @@ export default function App() {
       title: 'THỜI GIAN MUA',
       dataIndex: 'formTimestamp',
       key: 'formTimestamp',
-      render: (time?: string, record?: Customer) => {
-        const { fullDate } = parseDateDetails(time || record?.createdAt);
+      render: (_: any, record: Customer) => {
+        const { fullDate } = parseDateDetails(record);
         return (
           <Text style={{ fontSize: '13px', color: '#1677ff', fontWeight: 600 }}>
             {fullDate}
@@ -565,23 +608,26 @@ export default function App() {
       title: 'KHÁCH HÀNG',
       dataIndex: 'fullName',
       key: 'fullName',
-      render: (text?: string) => <strong>{text || '---'}</strong>,
+      render: (_: any, record: Customer) => <strong>{record.fullName || record.ho_ten || '---'}</strong>,
     },
     {
       title: 'SỐ ĐIỆN THOẠI',
       dataIndex: 'phone',
       key: 'phone',
-      render: (phone?: string) => (
-        <a href={`tel:${phone}`} style={{ color: '#1677ff', fontWeight: 500 }}>
-          {phone || '---'}
-        </a>
-      ),
+      render: (_: any, record: Customer) => {
+        const phoneVal = record.phone || record.dien_thoai || '';
+        return (
+          <a href={`tel:${phoneVal}`} style={{ color: '#1677ff', fontWeight: 500 }}>
+            {phoneVal || '---'}
+          </a>
+        );
+      },
     },
     {
       title: 'ĐỊA CHỈ',
       dataIndex: 'address',
       key: 'address',
-      render: (address?: string) => <Text style={{ fontSize: '13px' }}>{address || '---'}</Text>,
+      render: (_: any, record: Customer) => <Text style={{ fontSize: '13px' }}>{record.address || record.dia_chi || '---'}</Text>,
     },
     {
       title: 'TÊN XE / HÃNG',
@@ -596,30 +642,35 @@ export default function App() {
       title: 'MÀU XE',
       dataIndex: 'color',
       key: 'color',
-      render: (color?: string) => (
-        color ? <Tag color="cyan" style={{ borderRadius: 4, fontWeight: 500 }}>{color}</Tag> : <Text type="secondary">---</Text>
-      ),
+      render: (_: any, record: Customer) => {
+        const colorVal = record.color || record.mau;
+        return colorVal ? <Tag color="cyan" style={{ borderRadius: 4, fontWeight: 500 }}>{colorVal}</Tag> : <Text type="secondary">---</Text>;
+      },
     },
     {
       title: 'SỐ KHUNG',
       dataIndex: 'frameNumber',
       key: 'frameNumber',
-      render: (text?: string) =>
-        text ? <Text code style={{ color: '#d46b08', fontWeight: 600 }}>{text}</Text> : <Text type="secondary">---</Text>,
+      render: (_: any, record: Customer) => {
+        const frameVal = record.frameNumber || record.so_khung;
+        return frameVal ? <Text code style={{ color: '#d46b08', fontWeight: 600 }}>{frameVal}</Text> : <Text type="secondary">---</Text>;
+      },
     },
     {
       title: 'SỐ ACQUY',
       dataIndex: 'batteryNumber',
       key: 'batteryNumber',
-      render: (text?: string) =>
-        text ? <Text code style={{ color: '#389e0d', fontWeight: 600 }}>{text}</Text> : <Text type="secondary">---</Text>,
+      render: (_: any, record: Customer) => {
+        const batVal = record.batteryNumber || record.so_pin;
+        return batVal ? <Text code style={{ color: '#389e0d', fontWeight: 600 }}>{batVal}</Text> : <Text type="secondary">---</Text>;
+      },
     },
     {
       title: 'GIÁ BÁN',
       dataIndex: 'price',
       key: 'price',
-      render: (price?: any) => {
-        const numPrice = Number(price);
+      render: (_: any, record: Customer) => {
+        const numPrice = Number(record.price || record.gia_xe);
         if (!isNaN(numPrice) && numPrice > 0) {
           return (
             <Text type="success" style={{ fontWeight: 600 }}>
@@ -634,19 +685,23 @@ export default function App() {
       title: 'NHÂN VIÊN',
       dataIndex: 'staffName',
       key: 'staffName',
-      render: (staff?: string) => (
-        staff ? <Tag color="gold" style={{ borderRadius: 4, fontWeight: 500 }}>{staff}</Tag> : <Text type="secondary">---</Text>
-      ),
+      render: (_: any, record: Customer) => {
+        const staffVal = record.staffName || record.nhan_vien;
+        return staffVal ? <Tag color="gold" style={{ borderRadius: 4, fontWeight: 500 }}>{staffVal}</Tag> : <Text type="secondary">---</Text>;
+      },
     },
     {
       title: 'CHI NHÁNH',
       dataIndex: 'branchName',
       key: 'branchName',
-      render: (branch?: string) => (
-        <Tag color="blue" style={{ borderRadius: 4 }}>
-          {branch || '---'}
-        </Tag>
-      ),
+      render: (_: any, record: Customer) => {
+        const branchVal = record.branchName || record.chi_nhanh;
+        return (
+          <Tag color="blue" style={{ borderRadius: 4 }}>
+            {branchVal || '---'}
+          </Tag>
+        );
+      },
     },
     {
       title: 'THAO TÁC',
