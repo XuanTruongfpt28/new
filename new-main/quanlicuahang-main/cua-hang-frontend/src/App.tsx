@@ -39,15 +39,15 @@ const { RangePicker } = DatePicker;
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
 export interface Customer {
-  id: number;
-  fullName: string;
-  phone: string;
+  id?: number;
+  fullName?: string;
+  phone?: string;
   address?: string;
   brand?: string;
   model?: string;
   vehicleName?: string;
   color?: string;
-  price?: number;
+  price?: number | string;
   staffName?: string;
   branchName?: string;
   frameNumber?: string;
@@ -57,46 +57,340 @@ export interface Customer {
   createdAt?: string;
 }
 
-const ContractPrint = ({ customer }: { customer: Customer | null }) => {
-  if (!customer) return null;
-  return (
-    <div id="contract-print-area" style={{ display: 'none' }}>
+// HÀM MỞ TAB MỚI VÀ IN HỢP ĐỒNG ĐỘC LẬP
+const printContractInNewTab = (customer: Customer) => {
+  const today = new Date();
+  const day = String(today.getDate()).padStart(2, '0');
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const year = today.getFullYear();
+
+  const hoTen = customer.fullName || '';
+  const dienThoai = customer.phone || '';
+  const diaChi = customer.address || '';
+  const modelXe = customer.vehicleName || [customer.brand, customer.model].filter(Boolean).join(' ') || '';
+  const mauXe = customer.color || '';
+  const soKhung = customer.frameNumber || '';
+  const soPin = customer.batteryNumber || '';
+
+  const formatMoney = (val?: any) => {
+    if (!val) return '';
+    const num = Number(String(val).replace(/[^0-9]/g, ''));
+    return isNaN(num) || num === 0 ? String(val) : num.toLocaleString('vi-VN') + ' VNĐ';
+  };
+
+  const giaXe = formatMoney(customer.price);
+  const tongThanhToan = formatMoney(customer.price);
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('Vui lòng cho phép mở popup trên trình duyệt để in hợp đồng!');
+    return;
+  }
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="utf-8">
+      <title>Hop_dong_${hoTen || 'khach_hang'}</title>
       <style>
-        {`
-          @media print {
-            body * { visibility: hidden; }
-            #contract-print-area, #contract-print-area * { visibility: visible; }
-            #contract-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; font-family: sans-serif; }
-          }
-        `}
+        @page {
+          size: A4 portrait;
+          margin: 4mm 6mm;
+        }
+        * {
+          box-sizing: border-box;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        html, body {
+          margin: 0;
+          padding: 0;
+          background: #fff;
+          font-family: "Times New Roman", Times, serif;
+          font-size: 11px;
+          line-height: 1.22;
+          color: #000;
+        }
+        .page {
+          width: 100%;
+        }
+        .page-break {
+          page-break-before: always;
+          break-before: page;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        table.main-grid {
+          border: 1px solid #000;
+          margin: 3px 0;
+          table-layout: fixed;
+        }
+        table.main-grid td, table.main-grid th {
+          border: 1px solid #000;
+          padding: 2.5px 4px;
+          vertical-align: top;
+        }
+        table.maintenance-table {
+          border: 1px solid #000;
+          font-size: 9.5px;
+          margin-top: 4px;
+        }
+        table.maintenance-table th, table.maintenance-table td {
+          border: 1px solid #000;
+          text-align: center;
+          padding: 1.5px 2px;
+          height: 17px;
+        }
+        .text-left { text-align: left !important; }
+        .text-center { text-align: center !important; }
+        .text-right { text-align: right !important; }
+        .bold { font-weight: bold; }
+        .italic { font-style: italic; }
       </style>
-      <div style={{ textAlign: 'center', marginBottom: 20 }}>
-        <h2>HỆ THỐNG XE ĐIỆN THANH TƯƠI</h2>
-        <h3>HỢP ĐỒNG BÁN HÀNG & BẢO HÀNH</h3>
-      </div>
-      <p><strong>Khách hàng:</strong> {customer.fullName}</p>
-      <p><strong>Số điện thoại:</strong> {customer.phone}</p>
-      <p><strong>Địa chỉ:</strong> {customer.address || '---'}</p>
-      <p><strong>Loại xe:</strong> {customer.vehicleName || [customer.brand, customer.model].filter(Boolean).join(' ')}</p>
-      <p><strong>Màu sắc:</strong> {customer.color || '---'}</p>
-      <p><strong>Số khung:</strong> {customer.frameNumber || '---'}</p>
-      <p><strong>Số ắc quy / Pin:</strong> {customer.batteryNumber || '---'}</p>
-      <p><strong>Giá bán:</strong> {customer.price ? customer.price.toLocaleString('vi-VN') + ' VNĐ' : '---'}</p>
-      <p><strong>Chi nhánh:</strong> {customer.branchName || '---'}</p>
-      <p><strong>Nhân viên:</strong> {customer.staffName || '---'}</p>
-      <p><strong>Thời gian mua:</strong> {customer.formTimestamp || dayjs().format('DD/MM/YYYY')}</p>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 60 }}>
-        <div style={{ textAlign: 'center' }}>
-          <p><strong>NGƯỜI MUA HÀNG</strong></p>
-          <p style={{ fontStyle: 'italic' }}>(Ký và ghi rõ họ tên)</p>
+    </head>
+    <body>
+      <!-- TRANG 1: BIÊN NHẬN KIÊM HỢP ĐỒNG BÁN XE -->
+      <div class="page">
+        <table style="margin-bottom: 2px;">
+          <tbody>
+            <tr>
+              <td style="width: 50%; vertical-align: top; text-align: center;">
+                <strong style="font-size: 11.5px;">CÔNG TY TNHH XE ĐIỆN THANH TƯƠI</strong><br />
+                <span style="font-size: 10px;">Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</span><br />
+                <span style="font-size: 10px;">ĐT: 0939.30.90.91</span>
+              </td>
+              <td style="width: 50%; vertical-align: top; text-align: center;">
+                <strong style="font-size: 11.5px;">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br />
+                <strong style="font-size: 11px;">Độc lập - Tự do - Hạnh phúc</strong><br />
+                <i style="font-size: 10px;">..., Ngày ${day} Tháng ${month} Năm ${year}</i>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="text-align: center; margin: 2px 0 4px 0;">
+          <div class="bold" style="font-size: 14px;">BIÊN NHẬN</div>
+          <div class="bold" style="font-size: 11.5px;">(KIÊM HỢP ĐỒNG BÁN XE)</div>
         </div>
-        <div style={{ textAlign: 'center' }}>
-          <p><strong>ĐẠI DIỆN CỬA HÀNG</strong></p>
-          <p style={{ fontStyle: 'italic' }}>(Ký và đóng dấu)</p>
+
+        <div><strong>Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:</strong></div>
+        <div>Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK- 1867676868</div>
+        <div>Điện thoại liên hệ : 0939.30.90.91</div>
+        <div>CN1: Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp</div>
+        <div>CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</div>
+        <div>CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang</div>
+
+        <div style="margin-top: 3px;"><strong>Bên B ( Bên mua xe):</strong></div>
+        <div>
+          Họ và tên: <strong>${hoTen || '...................................................'}</strong>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          Điện thoại: <strong>${dienThoai || '.........................'}</strong>
         </div>
+        <div>Địa chỉ: <strong>${diaChi || '.......................................................................................................................................'}</strong></div>
+        <div>CCCD số: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ngày cấp: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Nơi cấp: Cục Cảnh sát quản lý hành chính về TTXH</div>
+
+        <div style="margin: 3px 0 2px 0;">
+          Sau khi bàn bạc và đi đến thống nhất, bên A đồng ý bán xe và bên B đồng ý mua xe với các điều khoản sau:
+        </div>
+
+        <table class="main-grid">
+          <thead>
+            <tr>
+              <th style="width: 33.33%; text-align: center; font-weight: bold;">I.ĐIỀU KHOẢN VỀ BẢO HÀNH</th>
+              <th style="width: 33.33%; text-align: center; font-weight: bold;">II. THÔNG TIN VỀ XE</th>
+              <th style="width: 33.34%; text-align: center; font-weight: bold;">III. HƯỚNG DẪN SỬ DỤNG ẮC QUY</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="bold">YADEA</div>
+                <div style="margin: 2px 0;">Động cơ, IC, bộ sạc bảo hành 24 tháng. Bình bảo hành 24 tháng, cụ thể lỗi 1 bình đổi cả bộ trong 18 tháng, lỗi bình nào đổi bình đó trong 6 tháng còn lại (Hoặc 20.000km)</div>
+                <div style="margin: 2px 0;">Động cơ, IC, bộ sạc bảo hành 36 tháng. Pin bảo hành 36 tháng (Hoặc 30.000km)</div>
+              </td>
+              <td>
+                <div>*Model : <strong>${modelXe}</strong></div>
+                <div>*Màu: <strong>${mauXe}</strong></div>
+                <div>*Số khung: <strong>${soKhung}</strong></div>
+                <div>* Số ắc quy/pin: <strong>${soPin}</strong></div>
+                <div>* Số động cơ:</div>
+                <div>* Mua thêm phụ kiện:</div>
+                <div>* Thu xe cũ:</div>
+                <div>Còn lại:</div>
+                <div>* Đã cọc:</div>
+                <div>* Giá xe: <strong>${giaXe}</strong></div>
+                <div>* <strong>Tổng thanh toán: ${tongThanhToan}</strong></div>
+                <div>Hình thức thanh toán: *Trả trước: &nbsp;&nbsp;&nbsp;&nbsp; *Còn lại:</div>
+                <div>* Phụ kiện theo xe: Bộ sạc</div>
+              </td>
+              <td>
+                <div class="italic" style="font-size: 10px;">
+                  <strong>Lần sạc đầu tiên:</strong> sau khi sạc ắc quy đầy, sạc báo đèn xanh, rút sạc ra đợi khoảng 20 phút, cắm lại cho sạc tiếp tục khoảng 1 tiếng.
+                </div>
+                <div class="italic" style="font-size: 10px; margin-top: 2px;">
+                  <strong>Trong quá trình sử dụng:</strong><br />
+                  + Bạn nên để xe khoảng 30 phút để ắc quy nguội bớt rồi hãy sạc.<br />
+                  + Nên sạc đầy rồi mới sử dụng. Hạn chế tối đa tình trạng xe cạn ắc quy và sạc nhiều lần trong ngày.<br />
+                  + Trường hợp có việc bận không có nhu cầu sử dụng xe, thì mỗi tuần nên sạc 1 lần.
+                </div>
+                <div class="bold" style="font-size: 9.5px; margin-top: 3px;">
+                  ẮC QUY SẼ XUỐNG CẤP DẦN THEO THỜI GIAN NÊN HÃY SỬ DỤNG ĐÚNG CÁCH ĐỂ SỬ DỤNG ẮC QUY ĐƯỢC LÂU HƠN
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="bold">BMX, PEGA, DK, SONSU…<br />JP, UNI</div>
+                <div style="margin: 2px 0;">Bình bảo hành 12 tháng, phù 06 tháng ( nên xem hướng dẫn sử dụng ắc quy).</div>
+                <div style="margin: 2px 0;">Động cơ, IC, bộ sạc bảo hành 12 tháng.</div>
+                <div style="margin: 2px 0;">Bình bảo hành 12 tháng, phù 09 tháng ( nên xem hướng dẫn sử dụng ắc quy).</div>
+              </td>
+              <td>
+                <div class="bold">IV: Thoả thuận và thống nhất giữa hai bên như sau</div>
+                <div>* Giá bán xe chưa bao gồm phí trước bạ, phí bấm biển số và phí dịch vụ ( đối với xe máy điện)</div>
+                <div>* Dịch vụ bấm biển số (không bao bảo hiểm và phí kẹp biển số):</div>
+                <div class="bold">* Quà tặng: NÓN BẢO HIỂM</div>
+                <div class="bold italic" style="margin-top: 2px;">*ƯU ĐÃI ĐẶC BIỆT: Miễn công cứu hộ tận nhà 12 tháng khi xe KÉO GA KHÔNG CHẠY (15km)</div>
+              </td>
+              <td>
+                <div class="bold">V: Điều khoản chung</div>
+                <div>* Bên B đã kiểm tra xe mới 100%, không trầy xước, phụ tùng theo xe đầy đủ.</div>
+                <div>* Bên B đã được bên A hướng dẫn sử dụng xe, chế độ bảo hành và kỹ năng lái xe an toàn, nhận quà khuyến mãi đầy đủ, bên B đã đọc và xác nhận những nội dung trên.</div>
+                <div>* Biên nhận được lập thành 02 bản có giá trị như nhau , mỗi bên giữ 1 bản</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top: 3px;">
+          <div class="bold">*LƯU Ý :</div>
+          <table style="font-size: 9.5px; line-height: 1.15;">
+            <tbody>
+              <tr><td style="width: 14px; vertical-align: top;">✓</td><td class="bold italic">LUÔN ĐỘI NÓN BẢO HIỂM KHI THAM GIA GIAO THÔNG (Kể cả xe đạp điện).</td></tr>
+              <tr><td style="vertical-align: top;">✓</td><td class="bold">NHỮNG PHẦN HAO MÒN TRONG QUÁ TRÌNH SỬ DỤNG KHÔNG BẢO HÀNH .</td></tr>
+              <tr><td style="vertical-align: top;">✓</td><td class="bold">KHÔNG BẢO HÀNH ĐỐI VỚI XE ĐÃ THAY ĐỔI KẾT CẤU VỀ ĐIỆN.</td></tr>
+              <tr><td style="vertical-align: top;">✓</td><td class="bold">BẢO HÀNH SỬA CHỮA KHÔNG BẢO HÀNH ĐỔI MỚI.</td></tr>
+              <tr><td style="vertical-align: top;">✓</td><td class="bold">BẢO HÀNH PHẢI CHO THÁO XE, ĐỒNG THỜI XE PHẢI ĐƯỢC ĐEM ĐẾN CỬA HÀNG.</td></tr>
+              <tr><td style="vertical-align: top;">✓</td><td class="bold">MỌI VẤN ĐỀ PHÁT SINH VỚI XE TRONG QUÁ TRÌNH SỬ DỤNG PHẢI ĐEM ĐẾN CỬA HÀNG TRONG THỜI GIAN NHANH NHẤT (1-3 NGÀY) ĐỂ ĐƯỢC GIẢI QUYẾT. NẾU SAU THỜI GIAN TRÊN CỬA HÀNG HOÀN TOÀN KHÔNG CHỊU TRÁCH NHIỆM.</td></tr>
+              <tr><td style="vertical-align: top;">✓</td><td class="bold">PHÍ ĐỔI - TRẢ SẢN PHẨM 30% TRONG VÒNG 30 NGÀY, KỂ TỪ NGÀY MUA.</td></tr>
+            </tbody>
+          </table>
+          <div class="text-right italic" style="margin-top: 2px; font-size: 9.5px;">
+            Tôi (bên B) hoàn toàn đồng ý với những thoả thuận trên.
+          </div>
+        </div>
+
+        <table style="margin-top: 10px; text-align: center;">
+          <tbody>
+            <tr>
+              <td style="width: 50%; vertical-align: top;">
+                <strong style="font-size: 11.5px;">Bên bán A</strong><br />
+                <i style="font-size: 9.5px;">( Ký và ghi rõ họ tên)</i>
+              </td>
+              <td style="width: 50%; vertical-align: top;">
+                <strong style="font-size: 11.5px;">Bên mua B</strong><br />
+                <i style="font-size: 9.5px;">( Ký và ghi rõ họ tên)</i>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </div>
-  );
+
+      <!-- TRANG 2: PHIẾU KIỂM TRA BẢO DƯỠNG ĐỊNH KỲ -->
+      <div class="page page-break">
+        <div class="text-center bold" style="font-size: 13px; margin: 4px 0 6px 0;">
+          PHIẾU KIỂM TRA BẢO DƯỠNG ĐỊNH KỲ (YADEA)
+        </div>
+
+        <table class="maintenance-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width: 28px;">STT</th>
+              <th rowspan="2" style="width: 170px;">Nội dung công việc</th>
+              <th colspan="5">Cấp bảo dưỡng</th>
+              <th rowspan="2" style="width: 55px;">Kết quả</th>
+              <th rowspan="2">Chú thích</th>
+            </tr>
+            <tr>
+              <th style="width: 26px;">L1</th>
+              <th style="width: 26px;">L2</th>
+              <th style="width: 26px;">L3</th>
+              <th style="width: 26px;">L4</th>
+              <th style="width: 26px;">L5</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td class="text-left">Hệ thống phanh</td>
+              <td>KT<br/>ĐC</td>
+              <td>KT<br/>ĐC</td>
+              <td>KT<br/>ĐC</td>
+              <td>KT<br/>ĐC</td>
+              <td>BT<br/>ĐC</td>
+              <td></td>
+              <td rowspan="7" class="text-left" style="font-size: 8.5px; vertical-align: top; padding: 4px;">
+                <strong>Chú thích:</strong> Khoanh tròn các hạng mục đã thực hiện.<br />
+                <strong>BT:</strong> Bôi trơn &nbsp;&nbsp;&nbsp;&nbsp; <strong>KT:</strong> Kiểm tra<br />
+                <strong>ĐC:</strong> Điều chỉnh &nbsp; <strong>TT:</strong> Thay thế<br /><br />
+                <strong>Lần 1:</strong> 300km/1tháng<br />
+                <strong>Lần 2:</strong> 2500km/3tháng<br />
+                <strong>Lần 3:</strong> 5000km/6tháng<br />
+                <strong>Lần 4:</strong> 7500km/9tháng<br />
+                <strong>Lần 5:</strong> 10000km/12tháng<br />
+                <i>(Tuỳ theo điều kiện nào đến trước)</i>
+              </td>
+            </tr>
+            <tr><td>2</td><td class="text-left">Kiểm tra tay ga</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>3</td><td class="text-left">Kiểm tra hệ thống chống trộm</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>4</td><td class="text-left">Kiểm tra động cơ</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>5</td><td class="text-left">Hệ thống chiếu sáng</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>6</td><td class="text-left">Kiểm tra càng trước, sau</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>7</td><td class="text-left">Kiểm tra sạc</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr>
+              <td>8</td>
+              <td class="text-left">Kiểm tra chân chống cạnh, giữa</td>
+              <td>KT</td>
+              <td>KT<br/>BT</td>
+              <td>KT</td>
+              <td>KT<br/>BT</td>
+              <td>KT<br/>BT</td>
+              <td></td>
+              <td rowspan="13" class="text-left italic" style="font-size: 9px; vertical-align: middle; padding: 6px; text-align: center;">
+                Quý khách vui lòng đến bảo dưỡng theo lịch định kỳ để xe được vận hành tốt và bền lâu hơn.<br /><br />
+                <strong>Xin cám ơn Quý khách!!!</strong>
+              </td>
+            </tr>
+            <tr><td>9</td><td class="text-left">Kiểm tra giảm xóc (trước, sau)</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>10</td><td class="text-left">Dây nối ắc quy</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>11</td><td class="text-left">Kiểm tra còi</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>12</td><td class="text-left">Kiểm tra điện áp Ắc quy</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>13</td><td class="text-left">Loại bỏ tiếng ồn bất thường</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td></td></tr>
+            <tr><td>14</td><td class="text-left">Áp suất lốp</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td></td></tr>
+            <tr><td>15</td><td class="text-left">Hệ thống dây điện</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>16</td><td class="text-left">Cố định ốc vít</td><td>ĐC</td><td>ĐC</td><td>ĐC</td><td>ĐC</td><td>ĐC</td><td></td></tr>
+            <tr><td>17</td><td class="text-left">Bôi trơn xe</td><td></td><td></td><td>BT</td><td></td><td>BT</td><td></td></tr>
+            <tr><td>18</td><td class="text-left">Cơ cấu mở khoá yên</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT<br/>BT</td><td></td></tr>
+            <tr><td>19</td><td class="text-left">Kiểm tra dầu phanh</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
+            <tr><td>20</td><td class="text-left">Kiểm tra cổ phốt</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT<br/>BT</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <script>
+        window.onload = function() {
+          window.print();
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
 };
 
 export default function App() {
@@ -104,7 +398,6 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [searchText, setSearchText] = useState<string>('');
 
-  const [selectedCustomerForPrint, setSelectedCustomerForPrint] = useState<Customer | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -178,10 +471,10 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  const handleFormSubmit = async (values: Omit<Customer, 'id'>) => {
+  const handleFormSubmit = async (values: any) => {
     setSubmitting(true);
     try {
-      if (editingCustomer) {
+      if (editingCustomer && editingCustomer.id) {
         await axios.put(`${BASE_API_URL}/customers/${editingCustomer.id}`, values);
         message.success('Cập nhật thành công!');
       } else {
@@ -198,7 +491,8 @@ export default function App() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id?: number) => {
+    if (!id) return;
     try {
       await axios.delete(`${BASE_API_URL}/customers/${id}`);
       message.success('Đã xóa thành công!');
@@ -206,13 +500,6 @@ export default function App() {
     } catch (error) {
       message.error('Xóa thất bại!');
     }
-  };
-
-  const handlePrintContract = (record: Customer) => {
-    setSelectedCustomerForPrint(record);
-    setTimeout(() => {
-      window.print();
-    }, 200);
   };
 
   const handleExportExcel = (values: any) => {
@@ -253,7 +540,7 @@ export default function App() {
 
     const excelData = filtered.map((item, index) => ({
       'STT': index + 1,
-      'ID Đơn': `#${item.id}`,
+      'ID Đơn': `#${item.id || index + 1}`,
       'Thời Gian Mua': item.formTimestamp || (item.createdAt ? dayjs(item.createdAt).format('DD/MM/YYYY') : '---'),
       'Khách Hàng': item.fullName || '---',
       'Số Điện Thoại': item.phone || '---',
@@ -262,7 +549,7 @@ export default function App() {
       'Màu Sắc': item.color || '---',
       'Số Khung': item.frameNumber || '---',
       'Số Acquy': item.batteryNumber || '---',
-      'Giá Bán (VNĐ)': item.price ? item.price.toLocaleString('vi-VN') : '0',
+      'Giá Bán (VNĐ)': item.price ? Number(item.price).toLocaleString('vi-VN') : '0',
       'Nhân Viên': item.staffName || '---',
       'Chi Nhánh': item.branchName || '---',
     }));
@@ -278,21 +565,28 @@ export default function App() {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'DanhSachKhachHang');
     XLSX.writeFile(workbook, `Danh_Sach_Khach_Hang_${dayjs().format('DDMMYYYY_HHmmss')}.xlsx`);
 
-    message.success(`Đã xuất thành công ${filtered.length} dòng dữ liệu sang Excel!`);
+    message.success(`Đã xuất thành công ${filtered.length} dòng dữ liệu!`);
     setIsExportModalOpen(false);
   };
 
   const filteredCustomers = customers.filter((item) => {
     const searchLower = searchText.toLowerCase();
     const fullVehicleName = item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ');
+    const name = item.fullName || '';
+    const phone = item.phone || '';
+    const address = item.address || '';
+    const color = item.color || '';
+    const frameNumber = item.frameNumber || '';
+    const batteryNumber = item.batteryNumber || '';
+
     return (
-      (item.fullName && item.fullName.toLowerCase().includes(searchLower)) ||
-      (item.phone && item.phone.includes(searchLower)) ||
-      (item.address && item.address.toLowerCase().includes(searchLower)) ||
-      (item.color && item.color.toLowerCase().includes(searchLower)) ||
-      (fullVehicleName && fullVehicleName.toLowerCase().includes(searchLower)) ||
-      (item.frameNumber && item.frameNumber.toLowerCase().includes(searchLower)) ||
-      (item.batteryNumber && item.batteryNumber.toLowerCase().includes(searchLower)) ||
+      name.toLowerCase().includes(searchLower) ||
+      phone.includes(searchLower) ||
+      address.toLowerCase().includes(searchLower) ||
+      color.toLowerCase().includes(searchLower) ||
+      fullVehicleName.toLowerCase().includes(searchLower) ||
+      frameNumber.toLowerCase().includes(searchLower) ||
+      batteryNumber.toLowerCase().includes(searchLower) ||
       (item.branchName && item.branchName.toLowerCase().includes(searchLower))
     );
   });
@@ -302,8 +596,8 @@ export default function App() {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
-      render: (id: number) => <Text type="secondary">#{id}</Text>,
-      width: 50,
+      render: (id?: number) => <Text type="secondary">#{id || '---'}</Text>,
+      width: 60,
     },
     {
       title: 'THỜI GIAN MUA',
@@ -336,13 +630,13 @@ export default function App() {
       title: 'KHÁCH HÀNG',
       dataIndex: 'fullName',
       key: 'fullName',
-      render: (text: string) => <strong>{text || '---'}</strong>,
+      render: (text?: string) => <strong>{text || '---'}</strong>,
     },
     {
       title: 'SỐ ĐIỆN THOẠI',
       dataIndex: 'phone',
       key: 'phone',
-      render: (phone: string) => (
+      render: (phone?: string) => (
         <a href={`tel:${phone}`} style={{ color: '#1677ff', fontWeight: 500 }}>
           {phone || '---'}
         </a>
@@ -389,7 +683,7 @@ export default function App() {
       title: 'GIÁ BÁN',
       dataIndex: 'price',
       key: 'price',
-      render: (price?: number) => {
+      render: (price?: any) => {
         const numPrice = Number(price);
         if (!isNaN(numPrice) && numPrice > 0) {
           return (
@@ -414,14 +708,14 @@ export default function App() {
     {
       title: 'THAO TÁC',
       key: 'actions',
-      render: (_, record: Customer) => (
+      render: (_: any, record: Customer) => (
         <Space size="small">
           <Button
             type="primary"
             size="small"
             icon={<PrinterOutlined />}
             style={{ backgroundColor: '#722ed1', borderColor: '#722ed1', borderRadius: 4 }}
-            onClick={() => handlePrintContract(record)}
+            onClick={() => printContractInNewTab(record)}
           >
             In HD
           </Button>
@@ -430,7 +724,7 @@ export default function App() {
           </Button>
           <Popconfirm
             title="Xác nhận xóa"
-            description="Bạn có chắc chắn muốn xóa?"
+            description="Bạn có chắc chắn muốn xóa khách hàng này?"
             onConfirm={() => handleDelete(record.id)}
             okText="Xóa"
             cancelText="Hủy"
@@ -447,8 +741,6 @@ export default function App() {
 
   return (
     <div style={{ padding: '24px', backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
-      <ContractPrint customer={selectedCustomerForPrint} />
-
       <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
@@ -493,7 +785,7 @@ export default function App() {
         <Table<Customer>
           dataSource={filteredCustomers}
           columns={columns}
-          rowKey="id"
+          rowKey={(record) => record.id || Math.random()}
           loading={loading}
           pagination={{ pageSize: 10 }}
           scroll={{ x: 'max-content' }}
