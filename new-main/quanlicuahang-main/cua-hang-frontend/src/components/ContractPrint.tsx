@@ -193,9 +193,9 @@ export const printContractDirectly = (customer: Customer) => {
                 <div>* Đã cọc:</div>
                 <div>* Giá xe: <strong>${giaXe}</strong></div>
                 <div>* <strong>Tổng thanh toán: ${tongThanhToan}</strong></div>
-                <div>Hình thức thanh toán:</div> 
-                </div>*Trả trước: &nbsp;&nbsp;&nbsp;&nbsp;</div> 
-                </div>*Còn lại:</div>
+                <div>Hình thức thanh toán:</div> <br />
+                </div>*Trả trước: &nbsp;&nbsp;&nbsp;&nbsp;</div> <br />
+                </div>*Còn lại:</div><br />
                 <div>* Phụ kiện theo xe: Bộ sạc</div>
               </td>
               <td>
@@ -215,11 +215,11 @@ export const printContractDirectly = (customer: Customer) => {
             </tr>
             <tr>
               <td>
-                <div class="bold">BMX, PEGA, DK, SONSU…<br />JP, UNI</div>
+                <div class="bold">BMX, PEGA, DK, SONSU…JP, UNI</div>
                 
-                <div style="margin: 2px 0;">Bình bảo hành 12 tháng, phù 06 tháng ( nên xem hướng dẫn sử dụng ắc quy).</div>
+                <div style="margin: 2px 0;">Bình bảo hành 12 tháng, phù 06 tháng ( nên xem hướng dẫn sử dụng ắc quy).</div><br />
                 
-                <div style="margin: 2px 0;">Động cơ, IC, bộ sạc bảo hành 12 tháng.</div>
+                <div style="margin: 2px 0;">Động cơ, IC, bộ sạc bảo hành 12 tháng.</div><br />
                 
                 <div style="margin: 2px 0;">Bình bảo hành 12 tháng, phù 09 tháng ( nên xem hướng dẫn sử dụng ắc quy).</div>
               
