@@ -38,7 +38,7 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
-// 1. Khai báo Interface Customer
+// 1. Interface dữ liệu Khách hàng
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -58,9 +58,8 @@ export interface Customer {
   createdAt?: string;
 }
 
-// 2. Hàm in hợp đồng 1 trang A4 duy nhất (Khớp ngày mua của khách hàng)
+// 2. Hàm in hợp đồng 1 trang A4 duy nhất theo đúng ngày mua của khách
 const printContractInNewTab = (customer: Customer) => {
-  // 👉 Tự động phân tích và lấy đúng ngày/tháng/năm mua xe của khách hàng
   const rawDateStr = customer.formTimestamp || customer.createdAt || '';
   let day = '....';
   let month = '....';
@@ -512,6 +511,8 @@ export default function App() {
     const color = item.color || '';
     const frameNumber = item.frameNumber || '';
     const batteryNumber = item.batteryNumber || '';
+    const staff = item.staffName || '';
+    const branch = item.branchName || '';
 
     return (
       name.toLowerCase().includes(searchLower) ||
@@ -521,7 +522,8 @@ export default function App() {
       fullVehicleName.toLowerCase().includes(searchLower) ||
       frameNumber.toLowerCase().includes(searchLower) ||
       batteryNumber.toLowerCase().includes(searchLower) ||
-      (item.branchName && item.branchName.toLowerCase().includes(searchLower))
+      staff.toLowerCase().includes(searchLower) ||
+      branch.toLowerCase().includes(searchLower)
     );
   });
 
@@ -628,6 +630,14 @@ export default function App() {
         }
         return <Text type="secondary">---</Text>;
       },
+    },
+    {
+      title: 'NHÂN VIÊN',
+      dataIndex: 'staffName',
+      key: 'staffName',
+      render: (staff?: string) => (
+        staff ? <Tag color="gold" style={{ borderRadius: 4, fontWeight: 500 }}>{staff}</Tag> : <Text type="secondary">---</Text>
+      ),
     },
     {
       title: 'CHI NHÁNH',
