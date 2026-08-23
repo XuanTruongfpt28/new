@@ -38,6 +38,7 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
+// 1. Khai báo Interface Customer lên đầu file
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -57,7 +58,7 @@ export interface Customer {
   createdAt?: string;
 }
 
-// HÀM MỞ TAB MỚI VÀ IN HỢP ĐỒNG ĐỘC LẬP
+// 2. Hàm in hợp đồng 1 trang A4 duy nhất
 const printContractInNewTab = (customer: Customer) => {
   const today = new Date();
   const day = String(today.getDate()).padStart(2, '0');
@@ -109,15 +110,11 @@ const printContractInNewTab = (customer: Customer) => {
           background: #fff;
           font-family: "Times New Roman", Times, serif;
           font-size: 11px;
-          line-height: 1.22;
+          line-height: 1.25;
           color: #000;
         }
         .page {
           width: 100%;
-        }
-        .page-break {
-          page-break-before: always;
-          break-before: page;
         }
         table {
           width: 100%;
@@ -125,35 +122,21 @@ const printContractInNewTab = (customer: Customer) => {
         }
         table.main-grid {
           border: 1px solid #000;
-          margin: 3px 0;
+          margin: 4px 0;
           table-layout: fixed;
         }
         table.main-grid td, table.main-grid th {
           border: 1px solid #000;
-          padding: 2.5px 4px;
+          padding: 3px 4px;
           vertical-align: top;
         }
-        table.maintenance-table {
-          border: 1px solid #000;
-          font-size: 9.5px;
-          margin-top: 4px;
-        }
-        table.maintenance-table th, table.maintenance-table td {
-          border: 1px solid #000;
-          text-align: center;
-          padding: 1.5px 2px;
-          height: 17px;
-        }
-        .text-left { text-align: left !important; }
-        .text-center { text-align: center !important; }
-        .text-right { text-align: right !important; }
         .bold { font-weight: bold; }
         .italic { font-style: italic; }
       </style>
     </head>
     <body>
-      <!-- TRANG 1: BIÊN NHẬN KIÊM HỢP ĐỒNG BÁN XE -->
       <div class="page">
+        <!-- HEADER -->
         <table style="margin-bottom: 2px;">
           <tbody>
             <tr>
@@ -171,11 +154,13 @@ const printContractInNewTab = (customer: Customer) => {
           </tbody>
         </table>
 
+        <!-- TITLE -->
         <div style="text-align: center; margin: 2px 0 4px 0;">
           <div class="bold" style="font-size: 14px;">BIÊN NHẬN</div>
           <div class="bold" style="font-size: 11.5px;">(KIÊM HỢP ĐỒNG BÁN XE)</div>
         </div>
 
+        <!-- BÊN A -->
         <div><strong>Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:</strong></div>
         <div>Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK- 1867676868</div>
         <div>Điện thoại liên hệ : 0939.30.90.91</div>
@@ -183,6 +168,7 @@ const printContractInNewTab = (customer: Customer) => {
         <div>CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</div>
         <div>CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang</div>
 
+        <!-- BÊN B -->
         <div style="margin-top: 3px;"><strong>Bên B ( Bên mua xe):</strong></div>
         <div>
           Họ và tên: <strong>${hoTen || '...................................................'}</strong>
@@ -196,6 +182,7 @@ const printContractInNewTab = (customer: Customer) => {
           Sau khi bàn bạc và đi đến thống nhất, bên A đồng ý bán xe và bên B đồng ý mua xe với các điều khoản sau:
         </div>
 
+        <!-- BẢNG ĐIỀU KHOẢN -->
         <table class="main-grid">
           <thead>
             <tr>
@@ -265,6 +252,7 @@ const printContractInNewTab = (customer: Customer) => {
           </tbody>
         </table>
 
+        <!-- LƯU Ý -->
         <div style="margin-top: 3px;">
           <div class="bold">*LƯU Ý :</div>
           <table style="font-size: 9.5px; line-height: 1.15;">
@@ -278,11 +266,12 @@ const printContractInNewTab = (customer: Customer) => {
               <tr><td style="vertical-align: top;">✓</td><td class="bold">PHÍ ĐỔI - TRẢ SẢN PHẨM 30% TRONG VÒNG 30 NGÀY, KỂ TỪ NGÀY MUA.</td></tr>
             </tbody>
           </table>
-          <div class="text-right italic" style="margin-top: 2px; font-size: 9.5px;">
+          <div style="text-align: right; font-style: italic; margin-top: 2px; font-size: 9.5px;">
             Tôi (bên B) hoàn toàn đồng ý với những thoả thuận trên.
           </div>
         </div>
 
+        <!-- CHỮ KÝ -->
         <table style="margin-top: 10px; text-align: center;">
           <tbody>
             <tr>
@@ -299,86 +288,6 @@ const printContractInNewTab = (customer: Customer) => {
         </table>
       </div>
 
-      <!-- TRANG 2: PHIẾU KIỂM TRA BẢO DƯỠNG ĐỊNH KỲ -->
-      <div class="page page-break">
-        <div class="text-center bold" style="font-size: 13px; margin: 4px 0 6px 0;">
-          PHIẾU KIỂM TRA BẢO DƯỠNG ĐỊNH KỲ (YADEA)
-        </div>
-
-        <table class="maintenance-table">
-          <thead>
-            <tr>
-              <th rowspan="2" style="width: 28px;">STT</th>
-              <th rowspan="2" style="width: 170px;">Nội dung công việc</th>
-              <th colspan="5">Cấp bảo dưỡng</th>
-              <th rowspan="2" style="width: 55px;">Kết quả</th>
-              <th rowspan="2">Chú thích</th>
-            </tr>
-            <tr>
-              <th style="width: 26px;">L1</th>
-              <th style="width: 26px;">L2</th>
-              <th style="width: 26px;">L3</th>
-              <th style="width: 26px;">L4</th>
-              <th style="width: 26px;">L5</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>1</td>
-              <td class="text-left">Hệ thống phanh</td>
-              <td>KT<br/>ĐC</td>
-              <td>KT<br/>ĐC</td>
-              <td>KT<br/>ĐC</td>
-              <td>KT<br/>ĐC</td>
-              <td>BT<br/>ĐC</td>
-              <td></td>
-              <td rowspan="7" class="text-left" style="font-size: 8.5px; vertical-align: top; padding: 4px;">
-                <strong>Chú thích:</strong> Khoanh tròn các hạng mục đã thực hiện.<br />
-                <strong>BT:</strong> Bôi trơn &nbsp;&nbsp;&nbsp;&nbsp; <strong>KT:</strong> Kiểm tra<br />
-                <strong>ĐC:</strong> Điều chỉnh &nbsp; <strong>TT:</strong> Thay thế<br /><br />
-                <strong>Lần 1:</strong> 300km/1tháng<br />
-                <strong>Lần 2:</strong> 2500km/3tháng<br />
-                <strong>Lần 3:</strong> 5000km/6tháng<br />
-                <strong>Lần 4:</strong> 7500km/9tháng<br />
-                <strong>Lần 5:</strong> 10000km/12tháng<br />
-                <i>(Tuỳ theo điều kiện nào đến trước)</i>
-              </td>
-            </tr>
-            <tr><td>2</td><td class="text-left">Kiểm tra tay ga</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>3</td><td class="text-left">Kiểm tra hệ thống chống trộm</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>4</td><td class="text-left">Kiểm tra động cơ</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>5</td><td class="text-left">Hệ thống chiếu sáng</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>6</td><td class="text-left">Kiểm tra càng trước, sau</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>7</td><td class="text-left">Kiểm tra sạc</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr>
-              <td>8</td>
-              <td class="text-left">Kiểm tra chân chống cạnh, giữa</td>
-              <td>KT</td>
-              <td>KT<br/>BT</td>
-              <td>KT</td>
-              <td>KT<br/>BT</td>
-              <td>KT<br/>BT</td>
-              <td></td>
-              <td rowspan="13" class="text-left italic" style="font-size: 9px; vertical-align: middle; padding: 6px; text-align: center;">
-                Quý khách vui lòng đến bảo dưỡng theo lịch định kỳ để xe được vận hành tốt và bền lâu hơn.<br /><br />
-                <strong>Xin cám ơn Quý khách!!!</strong>
-              </td>
-            </tr>
-            <tr><td>9</td><td class="text-left">Kiểm tra giảm xóc (trước, sau)</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>10</td><td class="text-left">Dây nối ắc quy</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>11</td><td class="text-left">Kiểm tra còi</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>12</td><td class="text-left">Kiểm tra điện áp Ắc quy</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>13</td><td class="text-left">Loại bỏ tiếng ồn bất thường</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td></td></tr>
-            <tr><td>14</td><td class="text-left">Áp suất lốp</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td>KT<br/>ĐC</td><td></td></tr>
-            <tr><td>15</td><td class="text-left">Hệ thống dây điện</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>16</td><td class="text-left">Cố định ốc vít</td><td>ĐC</td><td>ĐC</td><td>ĐC</td><td>ĐC</td><td>ĐC</td><td></td></tr>
-            <tr><td>17</td><td class="text-left">Bôi trơn xe</td><td></td><td></td><td>BT</td><td></td><td>BT</td><td></td></tr>
-            <tr><td>18</td><td class="text-left">Cơ cấu mở khoá yên</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT<br/>BT</td><td></td></tr>
-            <tr><td>19</td><td class="text-left">Kiểm tra dầu phanh</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td></td></tr>
-            <tr><td>20</td><td class="text-left">Kiểm tra cổ phốt</td><td>KT</td><td>KT</td><td>KT</td><td>KT</td><td>KT<br/>BT</td><td></td></tr>
-          </tbody>
-        </table>
-      </div>
       <script>
         window.onload = function() {
           window.print();
