@@ -1,3 +1,5 @@
+import React from 'react';
+
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -28,7 +30,6 @@ export const printContractDirectly = (customer: Customer) => {
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const year = today.getFullYear();
 
-  // Mapping dữ liệu chính xác theo record được chọn
   const hoTen = customer.fullName || customer.ho_ten || '';
   const dienThoai = customer.phone || customer.dien_thoai || '';
   const diaChi = customer.address || customer.dia_chi || '';
@@ -46,12 +47,18 @@ export const printContractDirectly = (customer: Customer) => {
   const giaXe = formatMoney(customer.price || customer.gia_xe);
   const tongThanhToan = formatMoney(customer.tong_thanh_toan || customer.price || customer.gia_xe);
 
+  const printWindow = window.open('', '_blank', 'width=950,height=900');
+  if (!printWindow) {
+    alert('Trình duyệt đã chặn popup. Vui lòng cho phép popup để in hợp đồng!');
+    return;
+  }
+
   const printContent = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Hợp đồng bán xe - ${hoTen}</title>
+      <title>Hop_dong_${hoTen || 'khach_hang'}</title>
       <style>
         @page {
           size: A4 portrait;
@@ -73,7 +80,6 @@ export const printContractDirectly = (customer: Customer) => {
         }
         .page {
           width: 100%;
-          min-height: 100%;
         }
         .page-break {
           page-break-before: always;
@@ -112,7 +118,7 @@ export const printContractDirectly = (customer: Customer) => {
       </style>
     </head>
     <body>
-      <!-- ==================== TRANG 1: BIÊN NHẬN KIÊM HỢP ĐỒNG BÁN XE ==================== -->
+      <!-- TRANG 1: BIÊN NHẬN KIÊM HỢP ĐỒNG BÁN XE -->
       <div class="page">
         <table style="margin-bottom: 2px;">
           <tbody>
@@ -259,7 +265,7 @@ export const printContractDirectly = (customer: Customer) => {
         </table>
       </div>
 
-      <!-- ==================== TRANG 2: PHIẾU KIỂM TRA BẢO DƯỠNG ĐỊNH KỲ ==================== -->
+      <!-- TRANG 2: PHIẾU KIỂM TRA BẢO DƯỠNG ĐỊNH KỲ -->
       <div class="page page-break">
         <div class="text-center bold" style="font-size: 13px; margin: 4px 0 6px 0;">
           PHIẾU KIỂM TRA BẢO DƯỠNG ĐỊNH KỲ (YADEA)
@@ -343,29 +349,16 @@ export const printContractDirectly = (customer: Customer) => {
     </html>
   `;
 
-  // Tạo iframe ẩn thực hiện in
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  document.body.appendChild(iframe);
+  printWindow.document.open();
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  printWindow.focus();
 
-  const doc = iframe.contentWindow?.document;
-  if (doc) {
-    doc.open();
-    doc.write(printContent);
-    doc.close();
-    iframe.contentWindow?.focus();
-    setTimeout(() => {
-      iframe.contentWindow?.print();
-      document.body.removeChild(iframe);
-    }, 350);
-  }
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 250);
 };
-// Thêm component rỗng này vào cuối file ContractPrint.tsx để tương thích component cũ
-export const ContractPrint: React.FC<{ customer: any }> = () => null;
 
+export const ContractPrint: React.FC<{ customer: any }> = () => null;
 export default printContractDirectly;
