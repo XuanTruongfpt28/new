@@ -110,7 +110,6 @@ const parseDateDetails = (customerData: any) => {
     const cleanDate = rawDateStr.split('T')[0].split(' ')[0].trim();
     const parts = cleanDate.split('-');
     if (parts.length === 3) {
-      // Dạng YYYY-MM-DD
       if (parts[0].length === 4) {
         return {
           day: parts[2].padStart(2, '0'),
@@ -119,7 +118,6 @@ const parseDateDetails = (customerData: any) => {
           fullDate: `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`,
         };
       }
-      // Dạng DD-MM-YYYY
       return {
         day: parts[0].padStart(2, '0'),
         month: parts[1].padStart(2, '0'),
@@ -141,7 +139,7 @@ const parseDateDetails = (customerData: any) => {
   return { day: '....', month: '....', year: '2026', fullDate: '---' };
 };
 
-// 3. Hàm in hợp đồng 1 trang A4 chuẩn xác theo ngày mua xe của khách hàng
+// 3. Hàm in hợp đồng 1 trang A4 duy nhất theo đúng ngày mua xe của khách hàng
 const printContractInNewTab = (customer: Customer) => {
   const { day, month, year } = parseDateDetails(customer);
 
@@ -738,16 +736,30 @@ export default function App() {
   ];
 
   return (
-    <div style={{ padding: '24px', backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
+    <div style={{ padding: '12px', backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
       <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <div>
-            <Title level={3} style={{ margin: 0 }}>
+        
+        {/* THANH TIÊU ĐỀ RESPONSIVE: Tự xuống dòng trên màn hình điện thoại */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ minWidth: '240px', flex: '1 1 auto' }}>
+            <Title level={3} style={{ margin: 0, fontSize: '20px' }}>
               Quản Lý Khách Hàng
             </Title>
-            <Text type="secondary">Theo dõi thông tin mua xe, địa chỉ, Màu sắc, Số Khung & Số Acquy</Text>
+            <Text type="secondary" style={{ fontSize: '13px' }}>
+              Theo dõi thông tin mua xe, địa chỉ, Màu sắc, Số Khung & Số Acquy
+            </Text>
           </div>
-          <Space>
+
+          <Space wrap style={{ flexShrink: 0 }}>
             <Button
               type="primary"
               style={{ backgroundColor: '#217346', borderColor: '#217346', borderRadius: 6 }}
@@ -763,30 +775,33 @@ export default function App() {
               Thêm mới
             </Button>
             <Button icon={<ReloadOutlined />} loading={loading} onClick={fetchCustomers} style={{ borderRadius: 6 }}>
-              Tải lại dữ liệu
+              Tải lại
             </Button>
           </Space>
         </div>
 
-        <div style={{ marginBottom: 20 }}>
+        {/* Ô TÌM KIẾM */}
+        <div style={{ marginBottom: 16 }}>
           <Input
             placeholder="Tìm theo tên khách, SĐT, địa chỉ, màu sắc, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
             value={searchText}
             onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
             allowClear
-            size="large"
+            size="middle"
             style={{ borderRadius: 8 }}
           />
         </div>
 
+        {/* BẢNG DỮ LIỆU: Kéo vuốt ngang mượt mà trên điện thoại */}
         <Table<Customer>
           dataSource={filteredCustomers}
           columns={columns}
           rowKey={(record) => record.id || Math.random()}
           loading={loading}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 'max-content' }}
+          pagination={{ pageSize: 10, showSizeChanger: false }}
+          scroll={{ x: 1200 }}
+          size="small"
         />
       </Card>
 
@@ -797,6 +812,8 @@ export default function App() {
         onCancel={() => setIsModalOpen(false)}
         footer={null}
         destroyOnClose
+        width="95%"
+        style={{ maxWidth: '600px' }}
       >
         <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 16 }}>
           <Form.Item name="fullName" label="Tên khách hàng" rules={[{ required: true, message: 'Vui lòng nhập tên!' }]}>
@@ -856,6 +873,8 @@ export default function App() {
         open={isExportModalOpen}
         onCancel={() => setIsExportModalOpen(false)}
         footer={null}
+        width="95%"
+        style={{ maxWidth: '500px' }}
       >
         <Form form={exportForm} layout="vertical" onFinish={handleExportExcel} style={{ marginTop: 16 }}>
           <Form.Item name="dateRange" label="Khoảng thời gian mua xe (Từ ngày -> Đến ngày)">
