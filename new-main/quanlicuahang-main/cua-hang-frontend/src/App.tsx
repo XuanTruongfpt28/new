@@ -38,6 +38,7 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
+// 1. Interface dữ liệu Khách hàng
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -57,7 +58,7 @@ export interface Customer {
   createdAt?: string;
 }
 
-// Hàm chuẩn hóa mọi định dạng ngày thành object { day, month, year, fullDate }
+// 2. Hàm chuẩn hóa ngày mua xe gốc (DD/MM/YYYY)
 const parseDateDetails = (rawDateStr?: string) => {
   if (!rawDateStr) {
     const now = new Date();
@@ -69,9 +70,10 @@ const parseDateDetails = (rawDateStr?: string) => {
     };
   }
 
-  // Nếu dạng DD/MM/YYYY
+  // Khớp chính xác định dạng DD/MM/YYYY từ Google Sheets
   if (rawDateStr.includes('/')) {
-    const parts = rawDateStr.split(' ')[0].split('/');
+    const cleanDate = rawDateStr.split(' ')[0];
+    const parts = cleanDate.split('/');
     if (parts.length >= 3) {
       const d = parts[0].padStart(2, '0');
       const m = parts[1].padStart(2, '0');
@@ -80,7 +82,7 @@ const parseDateDetails = (rawDateStr?: string) => {
     }
   }
 
-  // Nếu dạng ISO Date: 2026-08-23T17:44:40.819Z
+  // Khớp định dạng ISO Date nếu có
   const dateObj = new Date(rawDateStr);
   if (!isNaN(dateObj.getTime())) {
     const d = String(dateObj.getDate()).padStart(2, '0');
@@ -92,7 +94,7 @@ const parseDateDetails = (rawDateStr?: string) => {
   return { day: '....', month: '....', year: '2026', fullDate: rawDateStr };
 };
 
-// Hàm in hợp đồng 1 trang A4 chuẩn xác theo ngày mua của khách
+// 3. Hàm in hợp đồng 1 trang A4 duy nhất theo đúng ngày mua xe
 const printContractInNewTab = (customer: Customer) => {
   const { day, month, year } = parseDateDetails(customer.formTimestamp || customer.createdAt);
 
@@ -214,7 +216,7 @@ const printContractInNewTab = (customer: Customer) => {
           Sau khi bàn bạc và đi đến thống nhất, bên A đồng ý bán xe và bên B đồng ý mua xe với các điều khoản sau:
         </div>
 
-        <!-- BẢNG ĐIỀU KHOẢN -->
+        <!-- BẢNG ĐIỀU KHOẢN VÀ THÔNG TIN XE -->
         <table class="main-grid">
           <thead>
             <tr>
