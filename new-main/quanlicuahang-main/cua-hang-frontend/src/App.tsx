@@ -38,7 +38,7 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
-// 1. Khai báo Interface Customer lên đầu file
+// 1. Khai báo Interface Customer
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -58,12 +58,36 @@ export interface Customer {
   createdAt?: string;
 }
 
-// 2. Hàm in hợp đồng 1 trang A4 duy nhất
+// 2. Hàm in hợp đồng 1 trang A4 duy nhất (Khớp ngày mua của khách hàng)
 const printContractInNewTab = (customer: Customer) => {
-  const today = new Date();
-  const day = String(today.getDate()).padStart(2, '0');
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const year = today.getFullYear();
+  // 👉 Tự động phân tích và lấy đúng ngày/tháng/năm mua xe của khách hàng
+  const rawDateStr = customer.formTimestamp || customer.createdAt || '';
+  let day = '....';
+  let month = '....';
+  let year = '2026';
+
+  if (rawDateStr) {
+    if (rawDateStr.includes('/')) {
+      const parts = rawDateStr.split(' ')[0].split('/');
+      if (parts.length >= 3) {
+        day = parts[0].padStart(2, '0');
+        month = parts[1].padStart(2, '0');
+        year = parts[2];
+      }
+    } else {
+      const d = new Date(rawDateStr);
+      if (!isNaN(d.getTime())) {
+        day = String(d.getDate()).padStart(2, '0');
+        month = String(d.getMonth() + 1).padStart(2, '0');
+        year = String(d.getFullYear());
+      }
+    }
+  } else {
+    const today = new Date();
+    day = String(today.getDate()).padStart(2, '0');
+    month = String(today.getMonth() + 1).padStart(2, '0');
+    year = String(today.getFullYear());
+  }
 
   const hoTen = customer.fullName || '';
   const dienThoai = customer.phone || '';
@@ -168,6 +192,7 @@ const printContractInNewTab = (customer: Customer) => {
         <div>CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</div>
         <div>CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang</div>
         <div>CN4: 293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang</div>
+
         <!-- BÊN B -->
         <div style="margin-top: 3px;"><strong>Bên B ( Bên mua xe):</strong></div>
         <div>
