@@ -38,6 +38,7 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
+// 1. Interface dữ liệu Khách hàng
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -70,6 +71,7 @@ export interface Customer {
   [key: string]: any;
 }
 
+// 2. Hàm phân tích chính xác Ngày Mua từ dữ liệu Form
 const parseDateDetails = (customerData: any) => {
   if (!customerData) {
     const now = new Date();
@@ -133,6 +135,7 @@ const parseDateDetails = (customerData: any) => {
   return { day: '....', month: '....', year: '2026', fullDate: '---' };
 };
 
+// 3. Hàm in hợp đồng 1 trang A4 duy nhất theo đúng ngày mua xe của khách hàng
 const printContractInNewTab = (customer: Customer) => {
   const { day, month, year } = parseDateDetails(customer);
 
@@ -179,6 +182,7 @@ const printContractInNewTab = (customer: Customer) => {
     </head>
     <body>
       <div class="page">
+        <!-- HEADER -->
         <table style="margin-bottom: 2px;">
           <tbody>
             <tr>
@@ -196,11 +200,13 @@ const printContractInNewTab = (customer: Customer) => {
           </tbody>
         </table>
 
+        <!-- TITLE -->
         <div style="text-align: center; margin: 2px 0 4px 0;">
           <div class="bold" style="font-size: 14px;">BIÊN NHẬN</div>
           <div class="bold" style="font-size: 11.5px;">(KIÊM HỢP ĐỒNG BÁN XE)</div>
         </div>
 
+        <!-- BÊN A -->
         <div><strong>Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:</strong></div>
         <div>Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK- 1867676868</div>
         <div>Điện thoại liên hệ : 0939.30.90.91</div>
@@ -209,6 +215,7 @@ const printContractInNewTab = (customer: Customer) => {
         <div>CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang</div>
         <div>CN4: 293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang</div>
 
+        <!-- BÊN B -->
         <div style="margin-top: 3px;"><strong>Bên B ( Bên mua xe):</strong></div>
         <div>
           Họ và tên: <strong>${hoTen || '...................................................'}</strong>
@@ -222,6 +229,7 @@ const printContractInNewTab = (customer: Customer) => {
           Sau khi bàn bạc và đi đến thống nhất, bên A đồng ý bán xe và bên B đồng ý mua xe với các điều khoản sau:
         </div>
 
+        <!-- BẢNG ĐIỀU KHOẢN VÀ THÔNG TIN XE -->
         <table class="main-grid">
           <thead>
             <tr>
@@ -291,6 +299,7 @@ const printContractInNewTab = (customer: Customer) => {
           </tbody>
         </table>
 
+        <!-- LƯU Ý -->
         <div style="margin-top: 3px;">
           <div class="bold">*LƯU Ý :</div>
           <table style="font-size: 9.5px; line-height: 1.15;">
@@ -309,6 +318,7 @@ const printContractInNewTab = (customer: Customer) => {
           </div>
         </div>
 
+        <!-- CHỮ KÝ -->
         <table style="margin-top: 10px; text-align: center;">
           <tbody>
             <tr>
@@ -537,7 +547,7 @@ export default function App() {
     );
   });
 
-  // 👉 BẢNG CỘT ĐÃ ĐƯỢC CĂN CHỈNH KÍCH THƯỚC VÀ CHỐNG RỚT DÒNG
+  // 👉 BẢNG CỘT ĐỒNG BỘ 100%, KHÔNG DÙNG FIXED LỆCH GIAO DIỆN
   const columns: ColumnsType<Customer> = [
     {
       title: 'ID',
@@ -698,7 +708,6 @@ export default function App() {
     {
       title: 'THAO TÁC',
       key: 'actions',
-      fixed: 'right',
       render: (_: any, record: Customer) => (
         <Space size="small">
           <Button
@@ -727,7 +736,7 @@ export default function App() {
           </Popconfirm>
         </Space>
       ),
-      width: 190,
+      width: 180,
       align: 'center',
     },
   ];
@@ -810,7 +819,6 @@ export default function App() {
           }}
           scroll={{ x: 1750 }}
           size="middle"
-          bordered
         />
       </Card>
 
