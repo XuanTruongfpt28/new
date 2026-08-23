@@ -1,6 +1,5 @@
 import React from 'react';
 
-// Interface nhận thông tin khách hàng linh hoạt
 export interface Customer {
   fullName?: string;
   ho_ten?: string;
@@ -35,7 +34,7 @@ export const ContractPrint: React.FC<ContractPrintProps> = ({ customer }) => {
   const month = String(today.getMonth() + 1).padStart(2, '0');
   const year = today.getFullYear();
 
-  // Mapping dữ liệu linh hoạt
+  // Mapping dữ liệu
   const hoTen = customer.fullName || customer.ho_ten || '...................................................';
   const dienThoai = customer.phone || customer.dien_thoai || '.........................';
   const diaChi = customer.address || customer.dia_chi || '.......................................................................................................................................';
@@ -55,11 +54,16 @@ export const ContractPrint: React.FC<ContractPrintProps> = ({ customer }) => {
   const tongThanhToan = formatMoney(customer.tong_thanh_toan || customer.price || customer.gia_xe);
 
   return (
-    <div id="contract-to-print" className="contract-container">
+    <div id="contract-to-print" className="contract-print-wrapper">
       <style>{`
-        /* Ẩn hoàn toàn trên giao diện web */
-        .contract-container {
-          display: none !important;
+        /* Ẩn trên màn hình thông thường mà không phá vỡ DOM in */
+        .contract-print-wrapper {
+          position: fixed;
+          top: -9999px;
+          left: -9999px;
+          width: 0;
+          height: 0;
+          overflow: hidden;
         }
 
         /* Chế độ in ấn chuyên dụng */
@@ -71,35 +75,35 @@ export const ContractPrint: React.FC<ContractPrintProps> = ({ customer }) => {
             visibility: visible !important;
           }
           #contract-to-print {
-            display: block !important;
-            position: absolute !important;
+            position: fixed !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
-            padding: 3mm 6mm !important;
+            height: auto !important;
+            padding: 2mm 5mm !important;
             font-family: "Times New Roman", Times, serif !important;
             font-size: 11px !important;
             line-height: 1.25 !important;
             color: #000 !important;
             background: #fff !important;
             box-sizing: border-box !important;
+            overflow: visible !important;
           }
           @page {
             size: A4 portrait;
             margin: 4mm;
           }
 
-          /* Bảng khung chính chuẩn Word */
           table.main-grid {
             width: 100%;
             border-collapse: collapse;
             border: 1px solid #000;
-            margin: 6px 0;
+            margin: 5px 0;
             table-layout: fixed;
           }
           table.main-grid td, table.main-grid th {
             border: 1px solid #000;
-            padding: 4px 5px;
+            padding: 3px 5px;
             vertical-align: top;
             box-sizing: border-box;
           }
@@ -120,7 +124,7 @@ export const ContractPrint: React.FC<ContractPrintProps> = ({ customer }) => {
               <td style={{ width: '50%', verticalAlign: 'top', textAlign: 'center' }}>
                 <strong style={{ fontSize: '11.5px' }}>CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br />
                 <strong style={{ fontSize: '11px' }}>Độc lập - Tự do - Hạnh phúc</strong><br />
-                <i style={{ fontSize: '10px' }}>..., Ngày {day} Tháng {month} Năm 202{year.toString().slice(-1)}</i>
+                <i style={{ fontSize: '10px' }}>..., Ngày {day} Tháng {month} Năm {year}</i>
               </td>
             </tr>
           </tbody>
@@ -160,14 +164,14 @@ export const ContractPrint: React.FC<ContractPrintProps> = ({ customer }) => {
           Địa chỉ: <strong>{diaChi}</strong>
         </div>
         <div style={{ margin: '1px 0' }}>
-          CCCD số: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ngày cấp: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Nơi cấp: Cục Cảnh sát quản lý hành chính về TTXH
+          CCCD số: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ngày cấp: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Nơi cấp: Cục Cảnh sát quản lý hành chính về TTXH
         </div>
 
         <p style={{ margin: '4px 0' }}>
           Sau khi bàn bạc và đi đến thống nhất, bên A đồng ý bán xe và bên B đồng ý mua xe với các điều khoản sau:
         </p>
 
-        {/* BẢNG KHUNG 3 CỘT CÓ ĐƯỜNG KẺ KHUNG TIÊU ĐỀ CHUẨN */}
+        {/* BẢNG KHUNG 3 CỘT */}
         <table className="main-grid">
           <thead>
             <tr>
@@ -194,9 +198,9 @@ export const ContractPrint: React.FC<ContractPrintProps> = ({ customer }) => {
               {/* NỘI DUNG CỘT II */}
               <td>
                 <div style={{ marginTop: '2px' }}>
-                  *Model: <strong>{modelXe}</strong><br />
-                  *Màu: <strong>{mauXe}</strong><br />
-                  *Số khung: <strong>{soKhung}</strong><br />
+                  * Model: <strong>{modelXe}</strong><br />
+                  * Màu: <strong>{mauXe}</strong><br />
+                  * Số khung: <strong>{soKhung}</strong><br />
                   * Số ắc quy/pin:<br />
                   <strong>{soPin}</strong><br />
                   * Số động cơ:<br />
@@ -208,7 +212,7 @@ export const ContractPrint: React.FC<ContractPrintProps> = ({ customer }) => {
                   * <strong>Tổng thanh toán:</strong><br />
                   <strong>{tongThanhToan}</strong><br />
                   Hình thức thanh toán:<br />
-                  *<strong>Trả trước:</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br /> *<strong>Còn lại:</strong><br />
+                  * <strong>Trả trước:</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; * <strong>Còn lại:</strong><br />
                   * <span style={{ textDecoration: 'underline' }}>Phụ kiện theo xe: Bộ sạc</span>
                 </div>
               </td>
@@ -257,7 +261,7 @@ export const ContractPrint: React.FC<ContractPrintProps> = ({ customer }) => {
           </tbody>
         </table>
 
-        {/* LƯU Ý CHECKLIST */}
+        {/* LƯU Ý */}
         <div style={{ marginTop: '4px' }}>
           <div style={{ fontWeight: 'bold', marginBottom: '1px' }}>*LƯU Ý :</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', lineHeight: '1.2' }}>
@@ -276,7 +280,7 @@ export const ContractPrint: React.FC<ContractPrintProps> = ({ customer }) => {
           </div>
         </div>
 
-        {/* CHỮ KÝ CÓ KHOẢNG TRỐNG KÝ TÊN RỘNG RÃI RẤT ĐẸP MẮT (margin-top: 15px) */}
+        {/* CHỮ KÝ */}
         <table style={{ width: '100%', marginTop: '15px', textAlign: 'center' }}>
           <tbody>
             <tr>
