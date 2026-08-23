@@ -38,7 +38,6 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
-// 1. Interface dữ liệu Khách hàng
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -58,35 +57,44 @@ export interface Customer {
   createdAt?: string;
 }
 
-// 2. Hàm in hợp đồng 1 trang A4 duy nhất theo đúng ngày mua của khách
-const printContractInNewTab = (customer: Customer) => {
-  const rawDateStr = customer.formTimestamp || customer.createdAt || '';
-  let day = '....';
-  let month = '....';
-  let year = '2026';
-
-  if (rawDateStr) {
-    if (rawDateStr.includes('/')) {
-      const parts = rawDateStr.split(' ')[0].split('/');
-      if (parts.length >= 3) {
-        day = parts[0].padStart(2, '0');
-        month = parts[1].padStart(2, '0');
-        year = parts[2];
-      }
-    } else {
-      const d = new Date(rawDateStr);
-      if (!isNaN(d.getTime())) {
-        day = String(d.getDate()).padStart(2, '0');
-        month = String(d.getMonth() + 1).padStart(2, '0');
-        year = String(d.getFullYear());
-      }
-    }
-  } else {
-    const today = new Date();
-    day = String(today.getDate()).padStart(2, '0');
-    month = String(today.getMonth() + 1).padStart(2, '0');
-    year = String(today.getFullYear());
+// Hàm chuẩn hóa mọi định dạng ngày thành object { day, month, year, fullDate }
+const parseDateDetails = (rawDateStr?: string) => {
+  if (!rawDateStr) {
+    const now = new Date();
+    return {
+      day: String(now.getDate()).padStart(2, '0'),
+      month: String(now.getMonth() + 1).padStart(2, '0'),
+      year: String(now.getFullYear()),
+      fullDate: `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`,
+    };
   }
+
+  // Nếu dạng DD/MM/YYYY
+  if (rawDateStr.includes('/')) {
+    const parts = rawDateStr.split(' ')[0].split('/');
+    if (parts.length >= 3) {
+      const d = parts[0].padStart(2, '0');
+      const m = parts[1].padStart(2, '0');
+      const y = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+      return { day: d, month: m, year: y, fullDate: `${d}/${m}/${y}` };
+    }
+  }
+
+  // Nếu dạng ISO Date: 2026-08-23T17:44:40.819Z
+  const dateObj = new Date(rawDateStr);
+  if (!isNaN(dateObj.getTime())) {
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const y = String(dateObj.getFullYear());
+    return { day: d, month: m, year: y, fullDate: `${d}/${m}/${y}` };
+  }
+
+  return { day: '....', month: '....', year: '2026', fullDate: rawDateStr };
+};
+
+// Hàm in hợp đồng 1 trang A4 chuẩn xác theo ngày mua của khách
+const printContractInNewTab = (customer: Customer) => {
+  const { day, month, year } = parseDateDetails(customer.formTimestamp || customer.createdAt);
 
   const hoTen = customer.fullName || '';
   const dienThoai = customer.phone || '';
@@ -471,21 +479,24 @@ export default function App() {
       return;
     }
 
-    const excelData = filtered.map((item, index) => ({
-      'STT': index + 1,
-      'ID Đơn': `#${item.id || index + 1}`,
-      'Thời Gian Mua': item.formTimestamp || (item.createdAt ? dayjs(item.createdAt).format('DD/MM/YYYY') : '---'),
-      'Khách Hàng': item.fullName || '---',
-      'Số Điện Thoại': item.phone || '---',
-      'Địa Chỉ': item.address || '---',
-      'Tên Xe / Hãng': item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || '---',
-      'Màu Sắc': item.color || '---',
-      'Số Khung': item.frameNumber || '---',
-      'Số Acquy': item.batteryNumber || '---',
-      'Giá Bán (VNĐ)': item.price ? Number(item.price).toLocaleString('vi-VN') : '0',
-      'Nhân Viên': item.staffName || '---',
-      'Chi Nhánh': item.branchName || '---',
-    }));
+    const excelData = filtered.map((item, index) => {
+      const { fullDate } = parseDateDetails(item.formTimestamp || item.createdAt);
+      return {
+        'STT': index + 1,
+        'ID Đơn': `#${item.id || index + 1}`,
+        'Thời Gian Mua': fullDate,
+        'Khách Hàng': item.fullName || '---',
+        'Số Điện Thoại': item.phone || '---',
+        'Địa Chỉ': item.address || '---',
+        'Tên Xe / Hãng': item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || '---',
+        'Màu Sắc': item.color || '---',
+        'Số Khung': item.frameNumber || '---',
+        'Số Acquy': item.batteryNumber || '---',
+        'Giá Bán (VNĐ)': item.price ? Number(item.price).toLocaleString('vi-VN') : '0',
+        'Nhân Viên': item.staffName || '---',
+        'Chi Nhánh': item.branchName || '---',
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     worksheet['!cols'] = [
@@ -540,24 +551,10 @@ export default function App() {
       dataIndex: 'formTimestamp',
       key: 'formTimestamp',
       render: (time?: string, record?: Customer) => {
-        const rawTime = time || record?.createdAt;
-        if (!rawTime) return <Text style={{ fontSize: '13px', color: '#595959' }}>---</Text>;
-
-        let formattedDate = rawTime;
-        const dateObj = new Date(rawTime);
-
-        if (!isNaN(dateObj.getTime()) && rawTime.includes('GMT')) {
-          const day = String(dateObj.getDate()).padStart(2, '0');
-          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-          const year = dateObj.getFullYear();
-          formattedDate = `${day}/${month}/${year}`;
-        } else if (rawTime.includes(' ')) {
-          formattedDate = rawTime.split(' ')[0];
-        }
-
+        const { fullDate } = parseDateDetails(time || record?.createdAt);
         return (
-          <Text style={{ fontSize: '13px', color: '#1677ff', fontWeight: 500 }}>
-            {formattedDate}
+          <Text style={{ fontSize: '13px', color: '#1677ff', fontWeight: 600 }}>
+            {fullDate}
           </Text>
         );
       },
@@ -598,7 +595,7 @@ export default function App() {
       dataIndex: 'color',
       key: 'color',
       render: (color?: string) => (
-        color ? <Tag color="cyan">{color}</Tag> : <Text type="secondary">---</Text>
+        color ? <Tag color="cyan" style={{ borderRadius: 4, fontWeight: 500 }}>{color}</Tag> : <Text type="secondary">---</Text>
       ),
     },
     {
