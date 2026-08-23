@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id            Int      @id @default(autoincrement())
+  fullName      String
+  phone         String?
+  address       String?  // Cột Địa chỉ
+  vehicleName   String?
+  price         Int?
+  staffName     String?
+  branchName    String?
+  imageUrl      String?
+  frameNumber   String?  // Số Khung (AI tự quét)
+  batteryNumber String?  // Số Acquy (AI tự quét)
+  formTimestamp String?  // Ngày mua (dd/MM/yyyy)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
