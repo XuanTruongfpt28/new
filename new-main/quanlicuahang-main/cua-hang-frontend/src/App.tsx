@@ -38,7 +38,6 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
-// 1. Interface dữ liệu Khách hàng
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -71,7 +70,6 @@ export interface Customer {
   [key: string]: any;
 }
 
-// 2. Hàm phân tích chính xác Ngày Mua từ dữ liệu Form
 const parseDateDetails = (customerData: any) => {
   if (!customerData) {
     const now = new Date();
@@ -83,7 +81,6 @@ const parseDateDetails = (customerData: any) => {
     };
   }
 
-  // Quét toàn bộ các trường ngày có thể có
   const rawDateStr =
     (typeof customerData === 'string' ? customerData : null) ||
     customerData.formTimestamp ||
@@ -93,7 +90,6 @@ const parseDateDetails = (customerData: any) => {
     customerData.createdAt ||
     '';
 
-  // 1. Trường hợp chuỗi có định dạng DD/MM/YYYY (ví dụ: "01/05/2026" hoặc "01/05/2026 16:22:27")
   if (rawDateStr.includes('/')) {
     const cleanDate = rawDateStr.split(' ')[0].trim();
     const parts = cleanDate.split('/');
@@ -105,7 +101,6 @@ const parseDateDetails = (customerData: any) => {
     }
   }
 
-  // 2. Trường hợp chuỗi có dấu gạch ngang (YYYY-MM-DD hoặc DD-MM-YYYY)
   if (rawDateStr.includes('-')) {
     const cleanDate = rawDateStr.split('T')[0].split(' ')[0].trim();
     const parts = cleanDate.split('-');
@@ -127,7 +122,6 @@ const parseDateDetails = (customerData: any) => {
     }
   }
 
-  // 3. Fallback qua Date Object
   const dateObj = new Date(rawDateStr);
   if (!isNaN(dateObj.getTime())) {
     const d = String(dateObj.getDate()).padStart(2, '0');
@@ -139,7 +133,6 @@ const parseDateDetails = (customerData: any) => {
   return { day: '....', month: '....', year: '2026', fullDate: '---' };
 };
 
-// 3. Hàm in hợp đồng 1 trang A4 duy nhất theo đúng ngày mua xe của khách hàng
 const printContractInNewTab = (customer: Customer) => {
   const { day, month, year } = parseDateDetails(customer);
 
@@ -173,48 +166,19 @@ const printContractInNewTab = (customer: Customer) => {
       <meta charset="utf-8">
       <title>Hop_dong_${hoTen || 'khach_hang'}</title>
       <style>
-        @page {
-          size: A4 portrait;
-          margin: 4mm 6mm;
-        }
-        * {
-          box-sizing: border-box;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-        html, body {
-          margin: 0;
-          padding: 0;
-          background: #fff;
-          font-family: "Times New Roman", Times, serif;
-          font-size: 11px;
-          line-height: 1.25;
-          color: #000;
-        }
-        .page {
-          width: 100%;
-        }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        table.main-grid {
-          border: 1px solid #000;
-          margin: 4px 0;
-          table-layout: fixed;
-        }
-        table.main-grid td, table.main-grid th {
-          border: 1px solid #000;
-          padding: 3px 4px;
-          vertical-align: top;
-        }
+        @page { size: A4 portrait; margin: 4mm 6mm; }
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        html, body { margin: 0; padding: 0; background: #fff; font-family: "Times New Roman", Times, serif; font-size: 11px; line-height: 1.25; color: #000; }
+        .page { width: 100%; }
+        table { width: 100%; border-collapse: collapse; }
+        table.main-grid { border: 1px solid #000; margin: 4px 0; table-layout: fixed; }
+        table.main-grid td, table.main-grid th { border: 1px solid #000; padding: 3px 4px; vertical-align: top; }
         .bold { font-weight: bold; }
         .italic { font-style: italic; }
       </style>
     </head>
     <body>
       <div class="page">
-        <!-- HEADER -->
         <table style="margin-bottom: 2px;">
           <tbody>
             <tr>
@@ -232,13 +196,11 @@ const printContractInNewTab = (customer: Customer) => {
           </tbody>
         </table>
 
-        <!-- TITLE -->
         <div style="text-align: center; margin: 2px 0 4px 0;">
           <div class="bold" style="font-size: 14px;">BIÊN NHẬN</div>
           <div class="bold" style="font-size: 11.5px;">(KIÊM HỢP ĐỒNG BÁN XE)</div>
         </div>
 
-        <!-- BÊN A -->
         <div><strong>Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:</strong></div>
         <div>Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK- 1867676868</div>
         <div>Điện thoại liên hệ : 0939.30.90.91</div>
@@ -247,7 +209,6 @@ const printContractInNewTab = (customer: Customer) => {
         <div>CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang</div>
         <div>CN4: 293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang</div>
 
-        <!-- BÊN B -->
         <div style="margin-top: 3px;"><strong>Bên B ( Bên mua xe):</strong></div>
         <div>
           Họ và tên: <strong>${hoTen || '...................................................'}</strong>
@@ -261,7 +222,6 @@ const printContractInNewTab = (customer: Customer) => {
           Sau khi bàn bạc và đi đến thống nhất, bên A đồng ý bán xe và bên B đồng ý mua xe với các điều khoản sau:
         </div>
 
-        <!-- BẢNG ĐIỀU KHOẢN VÀ THÔNG TIN XE -->
         <table class="main-grid">
           <thead>
             <tr>
@@ -331,7 +291,6 @@ const printContractInNewTab = (customer: Customer) => {
           </tbody>
         </table>
 
-        <!-- LƯU Ý -->
         <div style="margin-top: 3px;">
           <div class="bold">*LƯU Ý :</div>
           <table style="font-size: 9.5px; line-height: 1.15;">
@@ -350,7 +309,6 @@ const printContractInNewTab = (customer: Customer) => {
           </div>
         </div>
 
-        <!-- CHỮ KÝ -->
         <table style="margin-top: 10px; text-align: center;">
           <tbody>
             <tr>
@@ -368,9 +326,7 @@ const printContractInNewTab = (customer: Customer) => {
       </div>
 
       <script>
-        window.onload = function() {
-          window.print();
-        }
+        window.onload = function() { window.print(); }
       </script>
     </body>
     </html>
@@ -581,13 +537,15 @@ export default function App() {
     );
   });
 
+  // 👉 BẢNG CỘT ĐÃ ĐƯỢC CĂN CHỈNH KÍCH THƯỚC VÀ CHỐNG RỚT DÒNG
   const columns: ColumnsType<Customer> = [
     {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
-      render: (id?: number) => <Text type="secondary">#{id || '---'}</Text>,
-      width: 60,
+      render: (id?: number) => <Text type="secondary" style={{ whiteSpace: 'nowrap' }}>#{id || '---'}</Text>,
+      width: 65,
+      align: 'center',
     },
     {
       title: 'THỜI GIAN MUA',
@@ -596,17 +554,24 @@ export default function App() {
       render: (_: any, record: Customer) => {
         const { fullDate } = parseDateDetails(record);
         return (
-          <Text style={{ fontSize: '13px', color: '#1677ff', fontWeight: 600 }}>
+          <Text style={{ fontSize: '13px', color: '#1677ff', fontWeight: 600, whiteSpace: 'nowrap' }}>
             {fullDate}
           </Text>
         );
       },
+      width: 125,
+      align: 'center',
     },
     {
       title: 'KHÁCH HÀNG',
       dataIndex: 'fullName',
       key: 'fullName',
-      render: (_: any, record: Customer) => <strong>{record.fullName || record.ho_ten || '---'}</strong>,
+      render: (_: any, record: Customer) => (
+        <span style={{ fontWeight: 600, color: '#1f1f1f' }}>
+          {record.fullName || record.ho_ten || '---'}
+        </span>
+      ),
+      width: 170,
     },
     {
       title: 'SỐ ĐIỆN THOẠI',
@@ -615,17 +580,19 @@ export default function App() {
       render: (_: any, record: Customer) => {
         const phoneVal = record.phone || record.dien_thoai || '';
         return (
-          <a href={`tel:${phoneVal}`} style={{ color: '#1677ff', fontWeight: 500 }}>
+          <a href={`tel:${phoneVal}`} style={{ color: '#1677ff', fontWeight: 500, whiteSpace: 'nowrap' }}>
             {phoneVal || '---'}
           </a>
         );
       },
+      width: 120,
     },
     {
       title: 'ĐỊA CHỈ',
       dataIndex: 'address',
       key: 'address',
-      render: (_: any, record: Customer) => <Text style={{ fontSize: '13px' }}>{record.address || record.dia_chi || '---'}</Text>,
+      render: (_: any, record: Customer) => <span style={{ fontSize: '13px', color: '#595959' }}>{record.address || record.dia_chi || '---'}</span>,
+      width: 250,
     },
     {
       title: 'TÊN XE / HÃNG',
@@ -633,8 +600,9 @@ export default function App() {
       key: 'vehicleName',
       render: (_: any, record: Customer) => {
         const name = record.vehicleName || [record.brand, record.model].filter(Boolean).join(' ');
-        return <strong>{name || '---'}</strong>;
+        return <strong style={{ color: '#262626', whiteSpace: 'nowrap' }}>{name || '---'}</strong>;
       },
+      width: 160,
     },
     {
       title: 'MÀU XE',
@@ -642,8 +610,16 @@ export default function App() {
       key: 'color',
       render: (_: any, record: Customer) => {
         const colorVal = record.color || record.mau;
-        return colorVal ? <Tag color="cyan" style={{ borderRadius: 4, fontWeight: 500 }}>{colorVal}</Tag> : <Text type="secondary">---</Text>;
+        return colorVal ? (
+          <Tag color="cyan" style={{ borderRadius: 4, fontWeight: 500, whiteSpace: 'nowrap', textTransform: 'capitalize' }}>
+            {colorVal}
+          </Tag>
+        ) : (
+          <Text type="secondary">---</Text>
+        );
       },
+      width: 110,
+      align: 'center',
     },
     {
       title: 'SỐ KHUNG',
@@ -651,8 +627,10 @@ export default function App() {
       key: 'frameNumber',
       render: (_: any, record: Customer) => {
         const frameVal = record.frameNumber || record.so_khung;
-        return frameVal ? <Text code style={{ color: '#d46b08', fontWeight: 600 }}>{frameVal}</Text> : <Text type="secondary">---</Text>;
+        return frameVal ? <Text code style={{ color: '#d46b08', fontWeight: 600, whiteSpace: 'nowrap' }}>{frameVal}</Text> : <Text type="secondary">---</Text>;
       },
+      width: 110,
+      align: 'center',
     },
     {
       title: 'SỐ ACQUY',
@@ -660,8 +638,10 @@ export default function App() {
       key: 'batteryNumber',
       render: (_: any, record: Customer) => {
         const batVal = record.batteryNumber || record.so_pin;
-        return batVal ? <Text code style={{ color: '#389e0d', fontWeight: 600 }}>{batVal}</Text> : <Text type="secondary">---</Text>;
+        return batVal ? <Text code style={{ color: '#389e0d', fontWeight: 600, whiteSpace: 'nowrap' }}>{batVal}</Text> : <Text type="secondary">---</Text>;
       },
+      width: 110,
+      align: 'center',
     },
     {
       title: 'GIÁ BÁN',
@@ -671,13 +651,15 @@ export default function App() {
         const numPrice = Number(record.price || record.gia_xe);
         if (!isNaN(numPrice) && numPrice > 0) {
           return (
-            <Text type="success" style={{ fontWeight: 600 }}>
+            <span style={{ fontWeight: 600, color: '#389e0d', whiteSpace: 'nowrap' }}>
               {numPrice.toLocaleString('vi-VN')} VNĐ
-            </Text>
+            </span>
           );
         }
         return <Text type="secondary">---</Text>;
       },
+      width: 140,
+      align: 'right',
     },
     {
       title: 'NHÂN VIÊN',
@@ -685,8 +667,16 @@ export default function App() {
       key: 'staffName',
       render: (_: any, record: Customer) => {
         const staffVal = record.staffName || record.nhan_vien;
-        return staffVal ? <Tag color="gold" style={{ borderRadius: 4, fontWeight: 500 }}>{staffVal}</Tag> : <Text type="secondary">---</Text>;
+        return staffVal ? (
+          <Tag color="gold" style={{ borderRadius: 4, fontWeight: 500, whiteSpace: 'nowrap' }}>
+            {staffVal}
+          </Tag>
+        ) : (
+          <Text type="secondary">---</Text>
+        );
       },
+      width: 120,
+      align: 'center',
     },
     {
       title: 'CHI NHÁNH',
@@ -694,28 +684,33 @@ export default function App() {
       key: 'branchName',
       render: (_: any, record: Customer) => {
         const branchVal = record.branchName || record.chi_nhanh;
-        return (
-          <Tag color="blue" style={{ borderRadius: 4 }}>
-            {branchVal || '---'}
+        return branchVal ? (
+          <Tag color="blue" style={{ borderRadius: 4, fontWeight: 500, whiteSpace: 'nowrap' }}>
+            {branchVal}
           </Tag>
+        ) : (
+          <Text type="secondary">---</Text>
         );
       },
+      width: 110,
+      align: 'center',
     },
     {
       title: 'THAO TÁC',
       key: 'actions',
+      fixed: 'right',
       render: (_: any, record: Customer) => (
         <Space size="small">
           <Button
             type="primary"
             size="small"
             icon={<PrinterOutlined />}
-            style={{ backgroundColor: '#722ed1', borderColor: '#722ed1', borderRadius: 4 }}
+            style={{ backgroundColor: '#722ed1', borderColor: '#722ed1', borderRadius: 4, fontWeight: 500 }}
             onClick={() => printContractInNewTab(record)}
           >
             In HD
           </Button>
-          <Button type="link" icon={<EditOutlined />} onClick={() => handleOpenEditModal(record)}>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleOpenEditModal(record)}>
             Sửa
           </Button>
           <Popconfirm
@@ -726,20 +721,29 @@ export default function App() {
             cancelText="Hủy"
             okButtonProps={{ danger: true }}
           >
-            <Button type="link" danger icon={<DeleteOutlined />}>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               Xóa
             </Button>
           </Popconfirm>
         </Space>
       ),
+      width: 190,
+      align: 'center',
     },
   ];
 
   return (
-    <div style={{ padding: '12px', backgroundColor: '#f5f7fa', minHeight: '100vh' }}>
-      <Card bordered={false} style={{ borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        
-        {/* THANH TIÊU ĐỀ RESPONSIVE: Tự xuống dòng trên màn hình điện thoại */}
+    <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
+      <Card
+        bordered={false}
+        style={{
+          borderRadius: 12,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+          maxWidth: 1600,
+          margin: '0 auto',
+        }}
+      >
+        {/* THANH HEADER */}
         <div
           style={{
             display: 'flex',
@@ -751,7 +755,7 @@ export default function App() {
           }}
         >
           <div style={{ minWidth: '240px', flex: '1 1 auto' }}>
-            <Title level={3} style={{ margin: 0, fontSize: '20px' }}>
+            <Title level={3} style={{ margin: 0, fontSize: '22px', color: '#1f1f1f' }}>
               Quản Lý Khách Hàng
             </Title>
             <Text type="secondary" style={{ fontSize: '13px' }}>
@@ -762,7 +766,7 @@ export default function App() {
           <Space wrap style={{ flexShrink: 0 }}>
             <Button
               type="primary"
-              style={{ backgroundColor: '#217346', borderColor: '#217346', borderRadius: 6 }}
+              style={{ backgroundColor: '#217346', borderColor: '#217346', borderRadius: 6, fontWeight: 500 }}
               icon={<FileExcelOutlined />}
               onClick={() => {
                 exportForm.resetFields();
@@ -771,7 +775,7 @@ export default function App() {
             >
               Xuất Excel
             </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenAddModal} style={{ borderRadius: 6 }}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenAddModal} style={{ borderRadius: 6, fontWeight: 500 }}>
               Thêm mới
             </Button>
             <Button icon={<ReloadOutlined />} loading={loading} onClick={fetchCustomers} style={{ borderRadius: 6 }}>
@@ -789,19 +793,24 @@ export default function App() {
             onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
             allowClear
             size="middle"
-            style={{ borderRadius: 8 }}
+            style={{ borderRadius: 8, maxWidth: 600 }}
           />
         </div>
 
-        {/* BẢNG DỮ LIỆU: Kéo vuốt ngang mượt mà trên điện thoại */}
+        {/* BẢNG DỮ LIỆU */}
         <Table<Customer>
           dataSource={filteredCustomers}
           columns={columns}
           rowKey={(record) => record.id || Math.random()}
           loading={loading}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          scroll={{ x: 1200 }}
-          size="small"
+          pagination={{
+            pageSize: 10,
+            showTotal: (total) => `Tổng cộng ${total} khách hàng`,
+            showSizeChanger: false,
+          }}
+          scroll={{ x: 1750 }}
+          size="middle"
+          bordered
         />
       </Card>
 
