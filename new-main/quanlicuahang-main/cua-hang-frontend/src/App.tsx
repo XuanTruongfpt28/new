@@ -29,6 +29,9 @@ import {
   FilterOutlined,
   PrinterOutlined,
   ShopOutlined,
+  LockOutlined,
+  UserOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
@@ -137,7 +140,7 @@ const parseDateDetails = (customerData: any) => {
   return { day: '....', month: '....', year: '2026', fullDate: '---' };
 };
 
-// 3. Hàm in hợp đồng 1 trang A4 - Đổi thông tin linh hoạt theo Chi Nhánh
+// 3. Hàm in hợp đồng 1 trang A4 - Đổi thông tin theo Chi Nhánh
 const executePrintContract = (customer: Customer, selectedBranch: string = 'Chợ Mới') => {
   const { day, month, year } = parseDateDetails(customer);
 
@@ -158,9 +161,8 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
   const giaXe = formatMoney(customer.price || customer.gia_xe);
   const tongThanhToan = formatMoney(customer.price || customer.gia_xe);
 
-  // Cấu hình linh hoạt theo chi nhánh được chọn
   const isLapVo = selectedBranch === 'Lấp Vò';
-  
+
   const headerAddress = isLapVo
     ? 'Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp'
     : 'Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang';
@@ -393,6 +395,12 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
 };
 
 export default function App() {
+  // 👉 Quản lý trạng thái Đăng nhập qua LocalStorage
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('isLoggedIn') === 'true';
+  });
+  const [loginLoading, setLoginLoading] = useState<boolean>(false);
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [searchText, setSearchText] = useState<string>('');
@@ -404,11 +412,35 @@ export default function App() {
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [exportForm] = Form.useForm();
   const [form] = Form.useForm();
+  const [loginForm] = Form.useForm();
 
   // State Popup Chọn Chi Nhánh In Hợp Đồng
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
   const [selectedPrintCustomer, setSelectedPrintCustomer] = useState<Customer | null>(null);
   const [selectedBranchToPrint, setSelectedBranchToPrint] = useState<string>('Chợ Mới');
+
+  // Xử lý đăng nhập
+  const handleLogin = (values: any) => {
+    setLoginLoading(true);
+    const { username, password } = values;
+
+    // Cho phép đăng nhập bằng tài khoản admin hoặc thanhtuoi
+    if ((username === 'admin' || username === 'thanhtuoi') && (password === '123456' || password === 'thanhtuoi2026')) {
+      message.success('Đăng nhập thành công!');
+      localStorage.setItem('isLoggedIn', 'true');
+      setIsAuthenticated(true);
+    } else {
+      message.error('Tên đăng nhập hoặc mật khẩu không chính xác!');
+    }
+    setLoginLoading(false);
+  };
+
+  // Xử lý đăng xuất
+  const handleLogout = () => {
+    localStorage.removeItem('isLoggedIn');
+    setIsAuthenticated(false);
+    message.info('Đã đăng xuất khỏi hệ thống');
+  };
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -428,8 +460,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchCustomers();
-  }, []);
+    if (isAuthenticated) {
+      fetchCustomers();
+    }
+  }, [isAuthenticated]);
 
   const staffOptions = useMemo(() => {
     const staffSet = new Set<string>();
@@ -449,7 +483,6 @@ export default function App() {
     return Array.from(branchSet).map((name) => ({ label: name, value: name }));
   }, [customers]);
 
-  // Mở Popup chọn chi nhánh trước khi in
   const handleOpenPrintModal = (record: Customer) => {
     setSelectedPrintCustomer(record);
     const currentBranch = (record.branchName || record.chi_nhanh || '').trim();
@@ -811,6 +844,106 @@ export default function App() {
     },
   ];
 
+  // 👉 NẾU CHƯA ĐĂNG NHẬP: HIỂN THỊ GIAO DIỆN LOGIN
+  if (!isAuthenticated) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          background: 'linear-gradient(135deg, #1890ff 0%, #001529 100%)',
+          padding: '16px',
+        }}
+      >
+        <Card
+          bordered={false}
+          style={{
+            width: '100%',
+            maxWidth: 420,
+            borderRadius: 16,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+            textAlign: 'center',
+            padding: '24px 16px',
+          }}
+        >
+          <div style={{ marginBottom: 24 }}>
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                background: '#e6f7ff',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto',
+                color: '#1890ff',
+                fontSize: 28,
+              }}
+            >
+              <ShopOutlined />
+            </div>
+            <Title level={3} style={{ margin: 0, color: '#1f1f1f', fontWeight: 700 }}>
+              XE ĐIỆN THANH TƯƠI
+            </Title>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              Hệ thống Quản lý Khách hàng & In Hợp đồng
+            </Text>
+          </div>
+
+          <Form form={loginForm} layout="vertical" onFinish={handleLogin} size="large">
+            <Form.Item
+              name="username"
+              rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập!' }]}
+            >
+              <Input
+                prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+                placeholder="Tên đăng nhập (admin)"
+                style={{ borderRadius: 8 }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name="password"
+              rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+                placeholder="Mật khẩu (123456)"
+                style={{ borderRadius: 8 }}
+              />
+            </Form.Item>
+
+            <Form.Item style={{ marginTop: 24, marginBottom: 8 }}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={loginLoading}
+                block
+                style={{
+                  height: 44,
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: 15,
+                  backgroundColor: '#1890ff',
+                }}
+              >
+                ĐĂNG NHẬP
+              </Button>
+            </Form.Item>
+          </Form>
+
+          <Text type="secondary" style={{ fontSize: 12, marginTop: 12, display: 'block' }}>
+            Hệ thống quản lý nội bộ các chi nhánh Chợ Mới - Lấp Vò - Mỹ Luông
+          </Text>
+        </Card>
+      </div>
+    );
+  }
+
+  // 👉 KHI ĐÃ ĐĂNG NHẬP: HIỂN THỊ GIAO DIỆN QUẢN LÝ
   return (
     <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
       <Card
@@ -859,6 +992,9 @@ export default function App() {
             </Button>
             <Button icon={<ReloadOutlined />} loading={loading} onClick={fetchCustomers} style={{ borderRadius: 6 }}>
               Tải lại
+            </Button>
+            <Button danger icon={<LogoutOutlined />} onClick={handleLogout} style={{ borderRadius: 6 }}>
+              Đăng xuất
             </Button>
           </Space>
         </div>
