@@ -73,57 +73,7 @@ export interface Customer {
   [key: string]: any;
 }
 
-// 2. Cấu hình thông tin riêng biệt cho từng chi nhánh
-interface BranchInfo {
-  companyName: string;
-  headerAddress: string;
-  hotline: string;
-  sellerTitle: string;
-  bankAccount: string;
-  branchesList: string[];
-}
-
-const BRANCH_CONFIGS: Record<string, BranchInfo> = {
-  'Chợ Mới': {
-    companyName: 'CÔNG TY TNHH XE ĐIỆN THANH TƯƠI',
-    headerAddress: 'Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang',
-    hotline: '0939.30.90.91',
-    sellerTitle: 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:',
-    bankAccount: 'Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK - 1867676868',
-    branchesList: [
-      'CN1: Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp',
-      'CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang',
-      'CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang',
-      'CN4: 293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang',
-    ],
-  },
-  'Lấp Vò': {
-    companyName: 'CÔNG TY TNHH XE ĐIỆN THANH TƯƠI LẤP VÒ',
-    headerAddress: 'Ấp Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp',
-    hotline: '0939.30.90.91',
-    sellerTitle: 'Bên A ( Bên bán xe): CỬA HÀNG XE ĐIỆN THANH TƯƠI - CN LẤP VÒ:',
-    bankAccount: 'Tài khoản: Xe Điện Thanh Tươi Lấp Vò - MBBANK - 1867676868',
-    branchesList: [
-      'CN1: Ấp Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp (Trụ sở chính)',
-      'CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang',
-      'CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang',
-    ],
-  },
-  'Mỹ Luông': {
-    companyName: 'CÔNG TY TNHH XE ĐIỆN THANH TƯƠI MỸ LUÔNG',
-    headerAddress: 'Thị trấn Mỹ Luông, huyện Chợ Mới, tỉnh An Giang',
-    hotline: '0939.30.90.91',
-    sellerTitle: 'Bên A ( Bên bán xe): CỬA HÀNG XE ĐIỆN THANH TƯƠI - CN MỸ LUÔNG:',
-    bankAccount: 'Tài khoản: Xe Điện Thanh Tươi Mỹ Luông - MBBANK - 1867676868',
-    branchesList: [
-      'CN1: Thị trấn Mỹ Luông, Chợ Mới, An Giang',
-      'CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang',
-      'CN3: Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp',
-    ],
-  },
-};
-
-// 3. Hàm phân tích ngày mua gốc của khách hàng (DD/MM/YYYY)
+// 2. Hàm phân tích chính xác Ngày Mua từ dữ liệu Form
 const parseDateDetails = (customerData: any) => {
   if (!customerData) {
     const now = new Date();
@@ -187,9 +137,8 @@ const parseDateDetails = (customerData: any) => {
   return { day: '....', month: '....', year: '2026', fullDate: '---' };
 };
 
-// 4. Hàm in hợp đồng chuẩn 1 trang A4 theo đúng chi nhánh đã chọn
-const executePrintContract = (customer: Customer, selectedBranch: string) => {
-  const branchInfo = BRANCH_CONFIGS[selectedBranch] || BRANCH_CONFIGS['Chợ Mới'];
+// 3. Hàm in hợp đồng 1 trang A4 - Đã fix cảnh báo TypeScript
+const executePrintContract = (customer: Customer, _selectedBranch?: string) => {
   const { day, month, year } = parseDateDetails(customer);
 
   const hoTen = customer.fullName || customer.ho_ten || '';
@@ -215,10 +164,6 @@ const executePrintContract = (customer: Customer, selectedBranch: string) => {
     return;
   }
 
-  const branchListHtml = branchInfo.branchesList
-    .map((b) => `<div>${b}</div>`)
-    .join('');
-
   const htmlContent = `
     <!DOCTYPE html>
     <html lang="vi">
@@ -226,13 +171,41 @@ const executePrintContract = (customer: Customer, selectedBranch: string) => {
       <meta charset="utf-8">
       <title>Hop_dong_${hoTen || 'khach_hang'}</title>
       <style>
-        @page { size: A4 portrait; margin: 4mm 6mm; }
-        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        html, body { margin: 0; padding: 0; background: #fff; font-family: "Times New Roman", Times, serif; font-size: 11px; line-height: 1.25; color: #000; }
-        .page { width: 100%; }
-        table { width: 100%; border-collapse: collapse; }
-        table.main-grid { border: 1px solid #000; margin: 4px 0; table-layout: fixed; }
-        table.main-grid td, table.main-grid th { border: 1px solid #000; padding: 3px 4px; vertical-align: top; }
+        @page {
+          size: A4 portrait;
+          margin: 4mm 6mm;
+        }
+        * {
+          box-sizing: border-box;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        html, body {
+          margin: 0;
+          padding: 0;
+          background: #fff;
+          font-family: "Times New Roman", Times, serif;
+          font-size: 11px;
+          line-height: 1.25;
+          color: #000;
+        }
+        .page {
+          width: 100%;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        table.main-grid {
+          border: 1px solid #000;
+          margin: 4px 0;
+          table-layout: fixed;
+        }
+        table.main-grid td, table.main-grid th {
+          border: 1px solid #000;
+          padding: 3px 4px;
+          vertical-align: top;
+        }
         .bold { font-weight: bold; }
         .italic { font-style: italic; }
       </style>
@@ -244,9 +217,9 @@ const executePrintContract = (customer: Customer, selectedBranch: string) => {
           <tbody>
             <tr>
               <td style="width: 50%; vertical-align: top; text-align: center;">
-                <strong style="font-size: 11.5px;">${branchInfo.companyName}</strong><br />
-                <span style="font-size: 10px;">${branchInfo.headerAddress}</span><br />
-                <span style="font-size: 10px;">ĐT: ${branchInfo.hotline}</span>
+                <strong style="font-size: 11.5px;">CÔNG TY TNHH XE ĐIỆN THANH TƯƠI</strong><br />
+                <span style="font-size: 10px;">Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</span><br />
+                <span style="font-size: 10px;">ĐT: 0939.30.90.91</span>
               </td>
               <td style="width: 50%; vertical-align: top; text-align: center;">
                 <strong style="font-size: 11.5px;">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br />
@@ -263,11 +236,14 @@ const executePrintContract = (customer: Customer, selectedBranch: string) => {
           <div class="bold" style="font-size: 11.5px;">(KIÊM HỢP ĐỒNG BÁN XE)</div>
         </div>
 
-        <!-- BÊN A (TỰ ĐỘNG THAY ĐỔI THEO CHI NHÁNH ĐÃ CHỌN) -->
-        <div><strong>${branchInfo.sellerTitle}</strong></div>
-        <div>${branchInfo.bankAccount}</div>
-        <div>Điện thoại liên hệ : ${branchInfo.hotline}</div>
-        ${branchListHtml}
+        <!-- BÊN A -->
+        <div><strong>Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:</strong></div>
+        <div>Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK- 1867676868</div>
+        <div>Điện thoại liên hệ : 0939.30.90.91</div>
+        <div>CN1: Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp</div>
+        <div>CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</div>
+        <div>CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang</div>
+        <div>CN4: 293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang</div>
 
         <!-- BÊN B -->
         <div style="margin-top: 3px;"><strong>Bên B ( Bên mua xe):</strong></div>
@@ -283,7 +259,7 @@ const executePrintContract = (customer: Customer, selectedBranch: string) => {
           Sau khi bàn bạc và đi đến thống nhất, bên A đồng ý bán xe và bên B đồng ý mua xe với các điều khoản sau:
         </div>
 
-        <!-- BẢNG ĐIỀU KHOẢN VÀ THÔNG TIN XE -->
+        <!-- BẢNG ĐIỀU KHOẢN -->
         <table class="main-grid">
           <thead>
             <tr>
@@ -414,7 +390,7 @@ export default function App() {
   const [exportForm] = Form.useForm();
   const [form] = Form.useForm();
 
-  // 👉 State quản lý Popup chọn Chi Nhánh In Hợp Đồng
+  // State Popup Chọn Chi Nhánh In Hợp Đồng
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
   const [selectedPrintCustomer, setSelectedPrintCustomer] = useState<Customer | null>(null);
   const [selectedBranchToPrint, setSelectedBranchToPrint] = useState<string>('Chợ Mới');
@@ -458,7 +434,7 @@ export default function App() {
     return Array.from(branchSet).map((name) => ({ label: name, value: name }));
   }, [customers]);
 
-  // Mở popup chọn chi nhánh trước khi in
+  // Mở Popup chọn chi nhánh trước khi in
   const handleOpenPrintModal = (record: Customer) => {
     setSelectedPrintCustomer(record);
     const currentBranch = (record.branchName || record.chi_nhanh || '').trim();
@@ -901,7 +877,7 @@ export default function App() {
         />
       </Card>
 
-      {/* 👉 MODAL CHỌN CHI NHÁNH ĐỂ IN HỢP ĐỒNG */}
+      {/* MODAL CHỌN CHI NHÁNH ĐỂ IN HỢP ĐỒNG */}
       <Modal
         title={
           <Space>
@@ -916,26 +892,28 @@ export default function App() {
         cancelText="Hủy"
         okButtonProps={{ style: { backgroundColor: '#722ed1', borderColor: '#722ed1' } }}
         destroyOnClose
-        width={450}
+        width={420}
       >
-        <div style={{ padding: '16px 0' }}>
-          <Text style={{ display: 'block', marginBottom: 12 }}>
+        <div style={{ padding: '12px 0' }}>
+          <Text style={{ display: 'block', marginBottom: 10 }}>
             Khách hàng: <strong>{selectedPrintCustomer?.fullName || selectedPrintCustomer?.ho_ten}</strong>
           </Text>
-          <Text style={{ display: 'block', marginBottom: 8 }}>Vui lòng chọn chi nhánh xuất hợp đồng:</Text>
+          <Text style={{ display: 'block', marginBottom: 8, color: '#595959' }}>
+            Vui lòng chọn chi nhánh xuất hợp đồng:
+          </Text>
           <Radio.Group
             value={selectedBranchToPrint}
             onChange={(e) => setSelectedBranchToPrint(e.target.value)}
             style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
           >
             <Radio value="Chợ Mới">
-              <strong>Chi nhánh Chợ Mới</strong> (Tỉnh lộ 942, xã Chợ Mới, An Giang)
+              <strong>Chi nhánh Chợ Mới</strong>
             </Radio>
             <Radio value="Lấp Vò">
-              <strong>Chi nhánh Lấp Vò</strong> (Ấp Bình Hiệp A, xã Lấp Vò, Đồng Tháp)
+              <strong>Chi nhánh Lấp Vò</strong>
             </Radio>
             <Radio value="Mỹ Luông">
-              <strong>Chi nhánh Mỹ Luông</strong> (Thị trấn Mỹ Luông, Chợ Mới, An Giang)
+              <strong>Chi nhánh Mỹ Luông</strong>
             </Radio>
           </Radio.Group>
         </div>
