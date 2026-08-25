@@ -17,6 +17,7 @@ import {
   DatePicker,
   Select,
   Radio,
+  Tabs,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -32,6 +33,8 @@ import {
   LockOutlined,
   UserOutlined,
   LogoutOutlined,
+  UserAddOutlined,
+  IdcardOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
@@ -43,7 +46,7 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
-// 1. Interface dữ liệu Khách hàng
+// Interface dữ liệu Khách hàng
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -76,7 +79,21 @@ export interface Customer {
   [key: string]: any;
 }
 
-// 2. Hàm phân tích chính xác Ngày Mua từ dữ liệu Form
+// Interface Tài khoản người dùng / nhân viên
+interface UserAccount {
+  username: string;
+  password: string;
+  fullName: string;
+  branch: string;
+  role: 'admin' | 'staff';
+}
+
+const DEFAULT_ACCOUNTS: UserAccount[] = [
+  { username: 'admin', password: '123456', fullName: 'Quản trị viên', branch: 'Chợ Mới', role: 'admin' },
+  { username: 'thanhtuoi', password: '123456', fullName: 'Thanh Tươi', branch: 'Chợ Mới', role: 'admin' },
+];
+
+// Hàm phân tích chính xác Ngày Mua từ dữ liệu Form
 const parseDateDetails = (customerData: any) => {
   if (!customerData) {
     const now = new Date();
@@ -140,7 +157,7 @@ const parseDateDetails = (customerData: any) => {
   return { day: '....', month: '....', year: '2026', fullDate: '---' };
 };
 
-// 3. Hàm in hợp đồng 1 trang A4 - Đổi thông tin theo Chi Nhánh
+// Hàm in hợp đồng 1 trang A4
 const executePrintContract = (customer: Customer, selectedBranch: string = 'Chợ Mới') => {
   const { day, month, year } = parseDateDetails(customer);
 
@@ -188,41 +205,13 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
       <meta charset="utf-8">
       <title>Hop_dong_${hoTen || 'khach_hang'}</title>
       <style>
-        @page {
-          size: A4 portrait;
-          margin: 4mm 6mm;
-        }
-        * {
-          box-sizing: border-box;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-        html, body {
-          margin: 0;
-          padding: 0;
-          background: #fff;
-          font-family: "Times New Roman", Times, serif;
-          font-size: 11px;
-          line-height: 1.25;
-          color: #000;
-        }
-        .page {
-          width: 100%;
-        }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        table.main-grid {
-          border: 1px solid #000;
-          margin: 4px 0;
-          table-layout: fixed;
-        }
-        table.main-grid td, table.main-grid th {
-          border: 1px solid #000;
-          padding: 3px 4px;
-          vertical-align: top;
-        }
+        @page { size: A4 portrait; margin: 4mm 6mm; }
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        html, body { margin: 0; padding: 0; background: #fff; font-family: "Times New Roman", Times, serif; font-size: 11px; line-height: 1.25; color: #000; }
+        .page { width: 100%; }
+        table { width: 100%; border-collapse: collapse; }
+        table.main-grid { border: 1px solid #000; margin: 4px 0; table-layout: fixed; }
+        table.main-grid td, table.main-grid th { border: 1px solid #000; padding: 3px 4px; vertical-align: top; }
         .bold { font-weight: bold; }
         .italic { font-style: italic; }
       </style>
@@ -395,11 +384,14 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
 };
 
 export default function App() {
-  // 👉 Quản lý trạng thái Đăng nhập qua LocalStorage
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem('isLoggedIn') === 'true';
+  // Quản lý tài khoản và phiên đăng nhập
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    const saved = localStorage.getItem('currentUser');
+    return saved ? JSON.parse(saved) : null;
   });
-  const [loginLoading, setLoginLoading] = useState<boolean>(false);
+
+  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+  const [authLoading, setAuthLoading] = useState<boolean>(false);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -413,32 +405,87 @@ export default function App() {
   const [exportForm] = Form.useForm();
   const [form] = Form.useForm();
   const [loginForm] = Form.useForm();
+  const [registerForm] = Form.useForm();
 
   // State Popup Chọn Chi Nhánh In Hợp Đồng
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
   const [selectedPrintCustomer, setSelectedPrintCustomer] = useState<Customer | null>(null);
   const [selectedBranchToPrint, setSelectedBranchToPrint] = useState<string>('Chợ Mới');
 
+  // Lấy danh sách tài khoản đã đăng ký từ localStorage
+  const getStoredAccounts = (): UserAccount[] => {
+    const stored = localStorage.getItem('userAccounts');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return DEFAULT_ACCOUNTS;
+      }
+    }
+    return DEFAULT_ACCOUNTS;
+  };
+
   // Xử lý đăng nhập
   const handleLogin = (values: any) => {
-    setLoginLoading(true);
+    setAuthLoading(true);
     const { username, password } = values;
+    const accounts = getStoredAccounts();
 
-    // Cho phép đăng nhập bằng tài khoản admin hoặc thanhtuoi
-    if ((username === 'admin' || username === 'thanhtuoi') && (password === '123456' || password === 'thanhtuoi2026')) {
-      message.success('Đăng nhập thành công!');
-      localStorage.setItem('isLoggedIn', 'true');
-      setIsAuthenticated(true);
+    const user = accounts.find(
+      (acc) => acc.username.toLowerCase() === username.trim().toLowerCase() && acc.password === password
+    );
+
+    if (user) {
+      message.success(`Chào mừng ${user.fullName} (${user.branch})!`);
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      setCurrentUser(user);
     } else {
       message.error('Tên đăng nhập hoặc mật khẩu không chính xác!');
     }
-    setLoginLoading(false);
+    setAuthLoading(false);
+  };
+
+  // Xử lý tạo tài khoản nhân viên mới
+  const handleRegister = (values: any) => {
+    setAuthLoading(true);
+    const { username, password, fullName, branch } = values;
+    const accounts = getStoredAccounts();
+
+    const existing = accounts.find(
+      (acc) => acc.username.toLowerCase() === username.trim().toLowerCase()
+    );
+
+    if (existing) {
+      message.error('Tên đăng nhập này đã được sử dụng! Vui lòng chọn tên khác.');
+      setAuthLoading(false);
+      return;
+    }
+
+    const newUser: UserAccount = {
+      username: username.trim(),
+      password: password.trim(),
+      fullName: fullName.trim(),
+      branch: branch || 'Chợ Mới',
+      role: 'staff',
+    };
+
+    const updatedAccounts = [...accounts, newUser];
+    localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+
+    // Đăng nhập tự động ngay sau khi tạo tài khoản
+    localStorage.setItem('currentUser', JSON.stringify(newUser));
+    setCurrentUser(newUser);
+
+    message.success(`Đã tạo tài khoản thành công cho nhân viên ${newUser.fullName}!`);
+    setAuthLoading(false);
   };
 
   // Xử lý đăng xuất
   const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    setIsAuthenticated(false);
+    localStorage.removeItem('currentUser');
+    setCurrentUser(null);
+    loginForm.resetFields();
+    registerForm.resetFields();
     message.info('Đã đăng xuất khỏi hệ thống');
   };
 
@@ -460,10 +507,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (currentUser) {
       fetchCustomers();
     }
-  }, [isAuthenticated]);
+  }, [currentUser]);
 
   const staffOptions = useMemo(() => {
     const staffSet = new Set<string>();
@@ -506,6 +553,13 @@ export default function App() {
   const handleOpenAddModal = () => {
     setEditingCustomer(null);
     form.resetFields();
+    // Tự điền tên nhân viên và chi nhánh hiện tại khi thêm mới đơn
+    if (currentUser) {
+      form.setFieldsValue({
+        staffName: currentUser.fullName,
+        branchName: currentUser.branch,
+      });
+    }
     setIsModalOpen(true);
   };
 
@@ -844,8 +898,8 @@ export default function App() {
     },
   ];
 
-  // 👉 NẾU CHƯA ĐĂNG NHẬP: HIỂN THỊ GIAO DIỆN LOGIN
-  if (!isAuthenticated) {
+  // 👉 GIAO DIỆN ĐĂNG NHẬP & ĐĂNG KÝ TÀI KHOẢN CHO NHÂN VIÊN
+  if (!currentUser) {
     return (
       <div
         style={{
@@ -861,26 +915,25 @@ export default function App() {
           bordered={false}
           style={{
             width: '100%',
-            maxWidth: 420,
+            maxWidth: 440,
             borderRadius: 16,
-            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-            textAlign: 'center',
-            padding: '24px 16px',
+            boxShadow: '0 12px 30px rgba(0,0,0,0.25)',
+            padding: '16px 8px',
           }}
         >
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <div
               style={{
-                width: 64,
-                height: 64,
+                width: 60,
+                height: 60,
                 background: '#e6f7ff',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 16px auto',
+                margin: '0 auto 12px auto',
                 color: '#1890ff',
-                fontSize: 28,
+                fontSize: 26,
               }}
             >
               <ShopOutlined />
@@ -889,61 +942,166 @@ export default function App() {
               XE ĐIỆN THANH TƯƠI
             </Title>
             <Text type="secondary" style={{ fontSize: 13 }}>
-              Hệ thống Quản lý Khách hàng & In Hợp đồng
+              Hệ thống Quản lý Khách hàng & Hợp đồng
             </Text>
           </div>
 
-          <Form form={loginForm} layout="vertical" onFinish={handleLogin} size="large">
-            <Form.Item
-              name="username"
-              rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập!' }]}
-            >
-              <Input
-                prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
-                placeholder="Tên đăng nhập (admin)"
-                style={{ borderRadius: 8 }}
-              />
-            </Form.Item>
+          {/* TAB CHUYỂN ĐỔI: ĐĂNG NHẬP HOẶC TẠO TÀI KHOẢN */}
+          <Tabs
+            activeKey={authTab}
+            onChange={(key) => setAuthTab(key as any)}
+            centered
+            items={[
+              {
+                key: 'login',
+                label: (
+                  <span>
+                    <UserOutlined /> Đăng nhập
+                  </span>
+                ),
+                children: (
+                  <Form form={loginForm} layout="vertical" onFinish={handleLogin} size="large" style={{ marginTop: 8 }}>
+                    <Form.Item
+                      name="username"
+                      rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập!' }]}
+                    >
+                      <Input
+                        prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+                        placeholder="Tên đăng nhập (vd: kimly, ngoc...)"
+                        style={{ borderRadius: 8 }}
+                      />
+                    </Form.Item>
 
-            <Form.Item
-              name="password"
-              rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}
-            >
-              <Input.Password
-                prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
-                placeholder="Mật khẩu (123456)"
-                style={{ borderRadius: 8 }}
-              />
-            </Form.Item>
+                    <Form.Item
+                      name="password"
+                      rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}
+                    >
+                      <Input.Password
+                        prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+                        placeholder="Mật khẩu"
+                        style={{ borderRadius: 8 }}
+                      />
+                    </Form.Item>
 
-            <Form.Item style={{ marginTop: 24, marginBottom: 8 }}>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={loginLoading}
-                block
-                style={{
-                  height: 44,
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  fontSize: 15,
-                  backgroundColor: '#1890ff',
-                }}
-              >
-                ĐĂNG NHẬP
-              </Button>
-            </Form.Item>
-          </Form>
+                    <Form.Item style={{ marginTop: 20 }}>
+                      <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={authLoading}
+                        block
+                        style={{
+                          height: 44,
+                          borderRadius: 8,
+                          fontWeight: 600,
+                          fontSize: 15,
+                          backgroundColor: '#1890ff',
+                        }}
+                      >
+                        ĐĂNG NHẬP
+                      </Button>
+                    </Form.Item>
+                  </Form>
+                ),
+              },
+              {
+                key: 'register',
+                label: (
+                  <span>
+                    <UserAddOutlined /> Tạo tài khoản mới
+                  </span>
+                ),
+                children: (
+                  <Form
+                    form={registerForm}
+                    layout="vertical"
+                    onFinish={handleRegister}
+                    size="large"
+                    style={{ marginTop: 8 }}
+                  >
+                    <Form.Item
+                      name="fullName"
+                      rules={[{ required: true, message: 'Vui lòng nhập họ và tên nhân viên!' }]}
+                    >
+                      <Input
+                        prefix={<IdcardOutlined style={{ color: '#bfbfbf' }} />}
+                        placeholder="Họ và tên nhân viên (vd: Nguyễn Thị Kim Lý)"
+                        style={{ borderRadius: 8 }}
+                      />
+                    </Form.Item>
 
-          <Text type="secondary" style={{ fontSize: 12, marginTop: 12, display: 'block' }}>
-            Hệ thống quản lý nội bộ các chi nhánh Chợ Mới - Lấp Vò - Mỹ Luông
+                    <Form.Item
+                      name="branch"
+                      initialValue="Chợ Mới"
+                      rules={[{ required: true, message: 'Vui lòng chọn chi nhánh làm việc!' }]}
+                    >
+                      <Select
+                        placeholder="Chọn chi nhánh làm việc"
+                        options={[
+                          { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
+                          { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
+                          { label: 'Chi nhánh Mỹ Luông', value: 'Mỹ Luông' },
+                        ]}
+                      />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="username"
+                      rules={[{ required: true, message: 'Vui lòng đặt tên đăng nhập!' }]}
+                    >
+                      <Input
+                        prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+                        placeholder="Tên đăng nhập (viết liền không dấu)"
+                        style={{ borderRadius: 8 }}
+                      />
+                    </Form.Item>
+
+                    <Form.Item
+                      name="password"
+                      rules={[
+                        { required: true, message: 'Vui lòng đặt mật khẩu!' },
+                        { min: 4, message: 'Mật khẩu tối thiểu 4 ký tự!' },
+                      ]}
+                    >
+                      <Input.Password
+                        prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+                        placeholder="Mật khẩu đăng nhập"
+                        style={{ borderRadius: 8 }}
+                      />
+                    </Form.Item>
+
+                    <Form.Item style={{ marginTop: 20 }}>
+                      <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={authLoading}
+                        block
+                        style={{
+                          height: 44,
+                          borderRadius: 8,
+                          fontWeight: 600,
+                          fontSize: 15,
+                          backgroundColor: '#52c41a',
+                          borderColor: '#52c41a',
+                        }}
+                      >
+                        ĐĂNG KÝ VÀ VÀO HỆ THỐNG
+                      </Button>
+                    </Form.Item>
+                  </Form>
+                ),
+              },
+            ]}
+          />
+
+          <Text type="secondary" style={{ fontSize: 12, textAlign: 'center', display: 'block', marginTop: 8 }}>
+            Hệ thống nội bộ các chi nhánh: Chợ Mới - Lấp Vò - Mỹ Luông
           </Text>
         </Card>
       </div>
     );
   }
 
-  // 👉 KHI ĐÃ ĐĂNG NHẬP: HIỂN THỊ GIAO DIỆN QUẢN LÝ
+  // 👉 KHI ĐÃ ĐĂNG NHẬP: GIAO DIỆN QUẢN LÝ
   return (
     <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
       <Card
@@ -970,9 +1128,12 @@ export default function App() {
             <Title level={3} style={{ margin: 0, fontSize: '22px', color: '#1f1f1f' }}>
               Quản Lý Khách Hàng
             </Title>
-            <Text type="secondary" style={{ fontSize: '13px' }}>
-              Theo dõi thông tin mua xe, địa chỉ, Màu sắc, Số Khung & Số Acquy
-            </Text>
+            <Space style={{ marginTop: 4 }}>
+              <Text type="secondary" style={{ fontSize: '13px' }}>
+                Đang đăng nhập: <strong>{currentUser.fullName}</strong>
+              </Text>
+              <Tag color="blue">{currentUser.branch}</Tag>
+            </Space>
           </div>
 
           <Space wrap style={{ flexShrink: 0 }}>
