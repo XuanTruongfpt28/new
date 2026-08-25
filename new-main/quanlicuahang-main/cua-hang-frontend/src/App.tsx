@@ -137,8 +137,8 @@ const parseDateDetails = (customerData: any) => {
   return { day: '....', month: '....', year: '2026', fullDate: '---' };
 };
 
-// 3. Hàm in hợp đồng 1 trang A4 - Đã fix cảnh báo TypeScript
-const executePrintContract = (customer: Customer, _selectedBranch?: string) => {
+// 3. Hàm in hợp đồng 1 trang A4 - Đổi thông tin linh hoạt theo Chi Nhánh
+const executePrintContract = (customer: Customer, selectedBranch: string = 'Chợ Mới') => {
   const { day, month, year } = parseDateDetails(customer);
 
   const hoTen = customer.fullName || customer.ho_ten || '';
@@ -157,6 +157,21 @@ const executePrintContract = (customer: Customer, _selectedBranch?: string) => {
 
   const giaXe = formatMoney(customer.price || customer.gia_xe);
   const tongThanhToan = formatMoney(customer.price || customer.gia_xe);
+
+  // Cấu hình linh hoạt theo chi nhánh được chọn
+  const isLapVo = selectedBranch === 'Lấp Vò';
+  
+  const headerAddress = isLapVo
+    ? 'Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp'
+    : 'Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang';
+
+  const sellerTitle = isLapVo
+    ? 'I. Bên A ( Bên bán xe):  Công ty TNHH XE ĐIỆN THANH TƯƠI'
+    : 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:';
+
+  const bankAccount = isLapVo
+    ? 'Tài khoản: Công ty TNHH Xe điện Thanh Tươi - MBBANK- 6167676868'
+    : 'Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK- 1867676868';
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -218,7 +233,7 @@ const executePrintContract = (customer: Customer, _selectedBranch?: string) => {
             <tr>
               <td style="width: 50%; vertical-align: top; text-align: center;">
                 <strong style="font-size: 11.5px;">CÔNG TY TNHH XE ĐIỆN THANH TƯƠI</strong><br />
-                <span style="font-size: 10px;">Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</span><br />
+                <span style="font-size: 10px;">${headerAddress}</span><br />
                 <span style="font-size: 10px;">ĐT: 0939.30.90.91</span>
               </td>
               <td style="width: 50%; vertical-align: top; text-align: center;">
@@ -237,8 +252,8 @@ const executePrintContract = (customer: Customer, _selectedBranch?: string) => {
         </div>
 
         <!-- BÊN A -->
-        <div><strong>Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:</strong></div>
-        <div>Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK- 1867676868</div>
+        <div><strong>${sellerTitle}</strong></div>
+        <div>${bankAccount}</div>
         <div>Điện thoại liên hệ : 0939.30.90.91</div>
         <div>CN1: Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp</div>
         <div>CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</div>
