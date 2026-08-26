@@ -1078,6 +1078,66 @@ export default function App() {
     );
   }
 
+  // 👉 Tùy biến danh sách Tabs theo quyền: Admin thấy 2 Tab, Chi nhánh chỉ thấy 1 Tab
+  const tabItems = [
+    {
+      key: 'customers',
+      label: (
+        <span>
+          <OrderedListOutlined /> Danh Sách Khách Hàng ({customers.length})
+        </span>
+      ),
+      children: (
+        <div>
+          <div style={{ marginBottom: 16 }}>
+            <Input
+              placeholder="Tìm theo tên khách, SĐT, địa chỉ, màu sắc, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
+              prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+              value={searchText}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
+              allowClear
+              size="middle"
+              style={{ borderRadius: 8, maxWidth: 600 }}
+            />
+          </div>
+
+          <Table<Customer>
+            dataSource={filteredCustomers}
+            columns={columns}
+            rowKey={(record) => record.id || Math.random()}
+            loading={loading}
+            pagination={{
+              pageSize: 10,
+              showTotal: (total) => `Tổng cộng ${total} khách hàng`,
+              showSizeChanger: false,
+            }}
+            scroll={{ x: 1750 }}
+            size="middle"
+          />
+        </div>
+      ),
+    },
+    ...(currentUser?.role === 'admin'
+      ? [
+          {
+            key: 'analytics',
+            label: (
+              <span>
+                <BarChartOutlined /> Báo Cáo & Thống Kê Doanh Số Chi Nhánh
+              </span>
+            ),
+            children: (
+              <SalesAnalytics
+                customers={customers}
+                brandOptions={brandOptions}
+                parseDateDetails={parseDateDetails}
+              />
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
       <Card
@@ -1154,65 +1214,12 @@ export default function App() {
           </Space>
         </div>
 
-        {/* CHUYỂN TAB: QUẢN LÝ KHÁCH HÀNG & THỐNG KÊ DOANH SỐ */}
+        {/* CHUYỂN TAB (ADMIN THẤY 2 TAB, CHI NHÁNH CHỈ THẤY 1 TAB) */}
         <Tabs
           activeKey={activeTab}
           onChange={(k) => setActiveTab(k)}
           type="card"
-          items={[
-            {
-              key: 'customers',
-              label: (
-                <span>
-                  <OrderedListOutlined /> Danh Sách Khách Hàng ({customers.length})
-                </span>
-              ),
-              children: (
-                <div>
-                  <div style={{ marginBottom: 16 }}>
-                    <Input
-                      placeholder="Tìm theo tên khách, SĐT, địa chỉ, màu sắc, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
-                      prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
-                      value={searchText}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
-                      allowClear
-                      size="middle"
-                      style={{ borderRadius: 8, maxWidth: 600 }}
-                    />
-                  </div>
-
-                  <Table<Customer>
-                    dataSource={filteredCustomers}
-                    columns={columns}
-                    rowKey={(record) => record.id || Math.random()}
-                    loading={loading}
-                    pagination={{
-                      pageSize: 10,
-                      showTotal: (total) => `Tổng cộng ${total} khách hàng`,
-                      showSizeChanger: false,
-                    }}
-                    scroll={{ x: 1750 }}
-                    size="middle"
-                  />
-                </div>
-              ),
-            },
-            {
-              key: 'analytics',
-              label: (
-                <span>
-                  <BarChartOutlined /> Báo Cáo & Thống Kê Doanh Số Chi Nhánh
-                </span>
-              ),
-              children: (
-                <SalesAnalytics
-                  customers={customers}
-                  brandOptions={brandOptions}
-                  parseDateDetails={parseDateDetails}
-                />
-              ),
-            },
-          ]}
+          items={tabItems}
         />
       </Card>
 
