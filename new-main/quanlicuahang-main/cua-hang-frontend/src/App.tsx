@@ -17,6 +17,7 @@ import {
   DatePicker,
   Select,
   Radio,
+  Tabs,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -34,10 +35,13 @@ import {
   LogoutOutlined,
   KeyOutlined,
   SafetyCertificateOutlined,
+  OrderedListOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { supabase } from './supabase';
+import { SalesAnalytics } from './components/SalesAnalytics';
 
 dayjs.extend(customParseFormat);
 
@@ -46,7 +50,6 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
-// Interface Khách hàng
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -79,7 +82,6 @@ export interface Customer {
   [key: string]: any;
 }
 
-// Interface 4 Tài khoản cố định
 export interface SystemAccount {
   username: string;
   password: string;
@@ -89,37 +91,12 @@ export interface SystemAccount {
 }
 
 const DEFAULT_FIXED_ACCOUNTS: SystemAccount[] = [
-  {
-    username: 'admin',
-    password: '123456',
-    fullName: 'Ban Quản Trị (Admin)',
-    branch: 'Chợ Mới',
-    role: 'admin',
-  },
-  {
-    username: 'chomoi',
-    password: '123456',
-    fullName: 'Chi Nhánh Chợ Mới',
-    branch: 'Chợ Mới',
-    role: 'staff',
-  },
-  {
-    username: 'lapvo',
-    password: '123456',
-    fullName: 'Chi Nhánh Lấp Vò',
-    branch: 'Lấp Vò',
-    role: 'staff',
-  },
-  {
-    username: 'myluong',
-    password: '123456',
-    fullName: 'Chi Nhánh Mỹ Luông',
-    branch: 'Mỹ Luông',
-    role: 'staff',
-  },
+  { username: 'admin', password: '123456', fullName: 'Ban Quản Trị (Admin)', branch: 'Chợ Mới', role: 'admin' },
+  { username: 'chomoi', password: '123456', fullName: 'Chi Nhánh Chợ Mới', branch: 'Chợ Mới', role: 'staff' },
+  { username: 'lapvo', password: '123456', fullName: 'Chi Nhánh Lấp Vò', branch: 'Lấp Vò', role: 'staff' },
+  { username: 'myluong', password: '123456', fullName: 'Chi Nhánh Mỹ Luông', branch: 'Mỹ Luông', role: 'staff' },
 ];
 
-// Hàm phân tích Ngày Mua
 const parseDateDetails = (customerData: any) => {
   if (!customerData) {
     const now = new Date();
@@ -128,6 +105,7 @@ const parseDateDetails = (customerData: any) => {
       month: String(now.getMonth() + 1).padStart(2, '0'),
       year: String(now.getFullYear()),
       fullDate: `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`,
+      dayjsObj: dayjs(),
     };
   }
 
@@ -147,7 +125,7 @@ const parseDateDetails = (customerData: any) => {
       const d = parts[0].padStart(2, '0');
       const m = parts[1].padStart(2, '0');
       const y = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-      return { day: d, month: m, year: y, fullDate: `${d}/${m}/${y}` };
+      return { day: d, month: m, year: y, fullDate: `${d}/${m}/${y}`, dayjsObj: dayjs(`${y}-${m}-${d}`) };
     }
   }
 
@@ -161,6 +139,7 @@ const parseDateDetails = (customerData: any) => {
           month: parts[1].padStart(2, '0'),
           year: parts[0],
           fullDate: `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`,
+          dayjsObj: dayjs(`${parts[0]}-${parts[1]}-${parts[2]}`),
         };
       }
       return {
@@ -168,6 +147,7 @@ const parseDateDetails = (customerData: any) => {
         month: parts[1].padStart(2, '0'),
         year: parts[2],
         fullDate: `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[2]}`,
+        dayjsObj: dayjs(`${parts[2]}-${parts[1]}-${parts[0]}`),
       };
     }
   }
@@ -177,13 +157,12 @@ const parseDateDetails = (customerData: any) => {
     const d = String(dateObj.getDate()).padStart(2, '0');
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
     const y = String(dateObj.getFullYear());
-    return { day: d, month: m, year: y, fullDate: `${d}/${m}/${y}` };
+    return { day: d, month: m, year: y, fullDate: `${d}/${m}/${y}`, dayjsObj: dayjs(dateObj) };
   }
 
-  return { day: '....', month: '....', year: '2026', fullDate: '---' };
+  return { day: '....', month: '....', year: '2026', fullDate: '---', dayjsObj: null };
 };
 
-// Hàm In Hợp Đồng A4
 const executePrintContract = (customer: Customer, selectedBranch: string = 'Chợ Mới') => {
   const { day, month, year } = parseDateDetails(customer);
 
@@ -244,7 +223,6 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
     </head>
     <body>
       <div class="page">
-        <!-- HEADER -->
         <table style="margin-bottom: 2px;">
           <tbody>
             <tr>
@@ -262,13 +240,11 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
           </tbody>
         </table>
 
-        <!-- TITLE -->
         <div style="text-align: center; margin: 2px 0 4px 0;">
           <div class="bold" style="font-size: 14px;">BIÊN NHẬN</div>
           <div class="bold" style="font-size: 11.5px;">(KIÊM HỢP ĐỒNG BÁN XE)</div>
         </div>
 
-        <!-- BÊN A -->
         <div><strong>${sellerTitle}</strong></div>
         <div>${bankAccount}</div>
         <div>Điện thoại liên hệ : 0939.30.90.91</div>
@@ -277,7 +253,6 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
         <div>CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang</div>
         <div>CN4: 293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang</div>
 
-        <!-- BÊN B -->
         <div style="margin-top: 3px;"><strong>Bên B ( Bên mua xe):</strong></div>
         <div>
           Họ và tên: <strong>${hoTen || '...................................................'}</strong>
@@ -291,7 +266,6 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
           Sau khi bàn bạc và đi đến thống nhất, bên A đồng ý bán xe và bên B đồng ý mua xe với các điều khoản sau:
         </div>
 
-        <!-- BẢNG ĐIỀU KHOẢN -->
         <table class="main-grid">
           <thead>
             <tr>
@@ -361,7 +335,6 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
           </tbody>
         </table>
 
-        <!-- LƯU Ý -->
         <div style="margin-top: 3px;">
           <div class="bold">*LƯU Ý :</div>
           <table style="font-size: 9.5px; line-height: 1.15;">
@@ -380,7 +353,6 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
           </div>
         </div>
 
-        <!-- CHỮ KÝ -->
         <table style="margin-top: 10px; text-align: center;">
           <tbody>
             <tr>
@@ -410,18 +382,15 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
 };
 
 export default function App() {
-  // 1. Quản lý trạng thái phiên làm việc
   const [currentUser, setCurrentUser] = useState<SystemAccount | null>(() => {
     const saved = localStorage.getItem('currentUser');
     return saved ? JSON.parse(saved) : null;
   });
 
   const [authLoading, setAuthLoading] = useState<boolean>(false);
-
-  // 2. Danh sách 4 tài khoản được đồng bộ từ Supabase Cloud
   const [accounts, setAccounts] = useState<SystemAccount[]>(DEFAULT_FIXED_ACCOUNTS);
+  const [activeTab, setActiveTab] = useState<string>('customers');
 
-  // Modal quản lý mật khẩu của Admin
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState<boolean>(false);
   const [selectedAccountToEdit, setSelectedAccountToEdit] = useState<SystemAccount | null>(null);
 
@@ -439,12 +408,10 @@ export default function App() {
   const [loginForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
 
-  // State In Hợp Đồng
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
   const [selectedPrintCustomer, setSelectedPrintCustomer] = useState<Customer | null>(null);
   const [selectedBranchToPrint, setSelectedBranchToPrint] = useState<string>('Chợ Mới');
 
-  // Tải danh sách tài khoản mới nhất trực tiếp từ Supabase Cloud
   const fetchAccountsFromCloud = async () => {
     try {
       const { data, error } = await supabase.from('Account').select('*');
@@ -467,7 +434,6 @@ export default function App() {
     fetchAccountsFromCloud();
   }, []);
 
-  // Đăng nhập: Luôn kiểm tra mật khẩu trực tiếp từ Supabase Cloud
   const handleLogin = async (values: any) => {
     setAuthLoading(true);
     const { username, password } = values;
@@ -504,7 +470,6 @@ export default function App() {
     setAuthLoading(false);
   };
 
-  // Admin đổi mật khẩu: Ghi trực tiếp lên Supabase Cloud để đồng bộ toàn bộ máy
   const handleChangePassword = async (values: any) => {
     if (!selectedAccountToEdit) return;
     const { newPassword } = values;
@@ -537,7 +502,6 @@ export default function App() {
     }
   };
 
-  // Đăng xuất
   const handleLogout = () => {
     localStorage.removeItem('currentUser');
     setCurrentUser(null);
@@ -548,8 +512,8 @@ export default function App() {
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${BASE_API_URL}/customers`);
-      if (response.data && response.data.success) {
+      const response = await axios.get(`${BASE_API_URL}/customers?limit=100000&pageSize=100000`);
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
         setCustomers(response.data.data);
       } else if (Array.isArray(response.data)) {
         setCustomers(response.data);
@@ -584,6 +548,15 @@ export default function App() {
       if (name && name.trim()) branchSet.add(name.trim());
     });
     return Array.from(branchSet).map((name) => ({ label: name, value: name }));
+  }, [customers]);
+
+  const brandOptions = useMemo(() => {
+    const brandSet = new Set<string>();
+    customers.forEach((c) => {
+      const brand = (c.brand || (c.vehicleName || '').split(' ')[0] || '').trim();
+      if (brand) brandSet.add(brand);
+    });
+    return Array.from(brandSet).map((b) => ({ label: b, value: b }));
   }, [customers]);
 
   const handleOpenPrintModal = (record: Customer) => {
@@ -670,7 +643,6 @@ export default function App() {
     }
   };
 
-  // Xuất Excel: Tải TOÀN BỘ dữ liệu không giới hạn số lượng
   const handleExportExcel = async (values: any) => {
     const { dateRange, staffName, branchName } = values;
     const hideLoading = message.loading('Đang tải toàn bộ dữ liệu để xuất Excel...', 0);
@@ -994,7 +966,6 @@ export default function App() {
     },
   ];
 
-  // Màn hình Đăng nhập
   if (!currentUser) {
     return (
       <div
@@ -1107,7 +1078,6 @@ export default function App() {
     );
   }
 
-  // Giao diện Quản lý Chính
   return (
     <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
       <Card
@@ -1119,7 +1089,6 @@ export default function App() {
           margin: '0 auto',
         }}
       >
-        {/* HEADER */}
         <div
           style={{
             display: 'flex',
@@ -1128,11 +1097,13 @@ export default function App() {
             alignItems: 'center',
             gap: '12px',
             marginBottom: 16,
+            borderBottom: '1px solid #f0f0f0',
+            paddingBottom: 12,
           }}
         >
           <div style={{ minWidth: '240px', flex: '1 1 auto' }}>
             <Title level={3} style={{ margin: 0, fontSize: '22px', color: '#1f1f1f' }}>
-              Quản Lý Khách Hàng
+              XE ĐIỆN THANH TƯƠI
             </Title>
             <Space style={{ marginTop: 4 }}>
               <Text type="secondary" style={{ fontSize: '13px' }}>
@@ -1183,36 +1154,69 @@ export default function App() {
           </Space>
         </div>
 
-        {/* Ô TÌM KIẾM */}
-        <div style={{ marginBottom: 16 }}>
-          <Input
-            placeholder="Tìm theo tên khách, SĐT, địa chỉ, màu sắc, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
-            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
-            value={searchText}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
-            allowClear
-            size="middle"
-            style={{ borderRadius: 8, maxWidth: 600 }}
-          />
-        </div>
+        {/* CHUYỂN TAB: QUẢN LÝ KHÁCH HÀNG & THỐNG KÊ DOANH SỐ */}
+        <Tabs
+          activeKey={activeTab}
+          onChange={(k) => setActiveTab(k)}
+          type="card"
+          items={[
+            {
+              key: 'customers',
+              label: (
+                <span>
+                  <OrderedListOutlined /> Danh Sách Khách Hàng ({customers.length})
+                </span>
+              ),
+              children: (
+                <div>
+                  <div style={{ marginBottom: 16 }}>
+                    <Input
+                      placeholder="Tìm theo tên khách, SĐT, địa chỉ, màu sắc, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
+                      prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                      value={searchText}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
+                      allowClear
+                      size="middle"
+                      style={{ borderRadius: 8, maxWidth: 600 }}
+                    />
+                  </div>
 
-        {/* BẢNG DỮ LIỆU */}
-        <Table<Customer>
-          dataSource={filteredCustomers}
-          columns={columns}
-          rowKey={(record) => record.id || Math.random()}
-          loading={loading}
-          pagination={{
-            pageSize: 10,
-            showTotal: (total) => `Tổng cộng ${total} khách hàng`,
-            showSizeChanger: false,
-          }}
-          scroll={{ x: 1750 }}
-          size="middle"
+                  <Table<Customer>
+                    dataSource={filteredCustomers}
+                    columns={columns}
+                    rowKey={(record) => record.id || Math.random()}
+                    loading={loading}
+                    pagination={{
+                      pageSize: 10,
+                      showTotal: (total) => `Tổng cộng ${total} khách hàng`,
+                      showSizeChanger: false,
+                    }}
+                    scroll={{ x: 1750 }}
+                    size="middle"
+                  />
+                </div>
+              ),
+            },
+            {
+              key: 'analytics',
+              label: (
+                <span>
+                  <BarChartOutlined /> Báo Cáo & Thống Kê Doanh Số Chi Nhánh
+                </span>
+              ),
+              children: (
+                <SalesAnalytics
+                  customers={customers}
+                  brandOptions={brandOptions}
+                  parseDateDetails={parseDateDetails}
+                />
+              ),
+            },
+          ]}
         />
       </Card>
 
-      {/* MODAL ADMIN ĐỔI MẬT KHẨU ĐỒNG BỘ TOÀN HỆ THỐNG */}
+      {/* MODAL ADMIN ĐỔI MẬT KHẨU */}
       <Modal
         title={
           <Space>
@@ -1335,15 +1339,9 @@ export default function App() {
             onChange={(e) => setSelectedBranchToPrint(e.target.value)}
             style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
           >
-            <Radio value="Chợ Mới">
-              <strong>Chi nhánh Chợ Mới</strong>
-            </Radio>
-            <Radio value="Lấp Vò">
-              <strong>Chi nhánh Lấp Vò</strong>
-            </Radio>
-            <Radio value="Mỹ Luông">
-              <strong>Chi nhánh Mỹ Luông</strong>
-            </Radio>
+            <Radio value="Chợ Mới"><strong>Chi nhánh Chợ Mới</strong></Radio>
+            <Radio value="Lấp Vò"><strong>Chi nhánh Lấp Vò</strong></Radio>
+            <Radio value="Mỹ Luông"><strong>Chi nhánh Mỹ Luông</strong></Radio>
           </Radio.Group>
         </div>
       </Modal>
