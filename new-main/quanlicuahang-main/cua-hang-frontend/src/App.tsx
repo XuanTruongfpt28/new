@@ -467,7 +467,7 @@ export default function App() {
     fetchAccountsFromCloud();
   }, []);
 
-  // 👉 Đăng nhập: Luôn kiểm tra mật khẩu trực tiếp từ Supabase Cloud
+  // Đăng nhập: Luôn kiểm tra mật khẩu trực tiếp từ Supabase Cloud
   const handleLogin = async (values: any) => {
     setAuthLoading(true);
     const { username, password } = values;
@@ -475,7 +475,6 @@ export default function App() {
     const cleanPassword = password.trim();
 
     try {
-      // 1. Kiểm tra trực tiếp trên Supabase
       const { data, error } = await supabase
         .from('Account')
         .select('*')
@@ -505,14 +504,13 @@ export default function App() {
     setAuthLoading(false);
   };
 
-  // 👉 Admin đổi mật khẩu: Ghi trực tiếp lên Supabase Cloud để đồng bộ toàn bộ máy
+  // Admin đổi mật khẩu: Ghi trực tiếp lên Supabase Cloud để đồng bộ toàn bộ máy
   const handleChangePassword = async (values: any) => {
     if (!selectedAccountToEdit) return;
     const { newPassword } = values;
     const cleanNewPassword = newPassword.trim();
 
     try {
-      // Cập nhật lên Supabase
       const { error } = await supabase
         .from('Account')
         .update({ password: cleanNewPassword })
@@ -527,10 +525,8 @@ export default function App() {
       setIsPasswordModalOpen(false);
       passwordForm.resetFields();
 
-      // Cập nhật lại state máy hiện tại
       await fetchAccountsFromCloud();
 
-      // Nếu admin đổi mật khẩu của chính mình
       if (currentUser?.username === selectedAccountToEdit.username) {
         const updatedCurrent = { ...currentUser, password: cleanNewPassword };
         setCurrentUser(updatedCurrent);
@@ -674,68 +670,108 @@ export default function App() {
     }
   };
 
-  const handleExportExcel = (values: any) => {
+  // Xuất Excel: Tải TOÀN BỘ dữ liệu không giới hạn số lượng
+  const handleExportExcel = async (values: any) => {
     const { dateRange, staffName, branchName } = values;
-    let filtered = [...customers];
+    const hideLoading = message.loading('Đang tải toàn bộ dữ liệu để xuất Excel...', 0);
 
-    if (dateRange && dateRange[0] && dateRange[1]) {
-      const startDate = dateRange[0].startOf('day');
-      const endDate = dateRange[1].endOf('day');
+    try {
+      let allCustomers: Customer[] = [];
+      const response = await axios.get(`${BASE_API_URL}/customers?limit=100000&pageSize=100000`);
 
-      filtered = filtered.filter((item) => {
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        allCustomers = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        allCustomers = response.data;
+      } else {
+        allCustomers = [...customers];
+      }
+
+      let filtered = [...allCustomers];
+
+      if (dateRange && dateRange[0] && dateRange[1]) {
+        const startDate = dateRange[0].startOf('day');
+        const endDate = dateRange[1].endOf('day');
+
+        filtered = filtered.filter((item) => {
+          const { fullDate } = parseDateDetails(item);
+          if (!fullDate || fullDate === '---') return false;
+
+          const itemDate = dayjs(fullDate, 'DD/MM/YYYY');
+          if (!itemDate.isValid()) return false;
+
+          return (
+            (itemDate.isAfter(startDate) || itemDate.isSame(startDate)) &&
+            (itemDate.isBefore(endDate) || itemDate.isSame(endDate))
+          );
+        });
+      }
+
+      if (staffName) {
+        filtered = filtered.filter((item) => (item.staffName || item.nhan_vien) === staffName);
+      }
+      if (branchName) {
+        filtered = filtered.filter((item) => (item.branchName || item.chi_nhanh) === branchName);
+      }
+
+      hideLoading();
+
+      if (filtered.length === 0) {
+        message.warning('Không tìm thấy dữ liệu phù hợp với bộ lọc!');
+        return;
+      }
+
+      const excelData = filtered.map((item, index) => {
         const { fullDate } = parseDateDetails(item);
-        if (!fullDate || fullDate === '---') return false;
-
-        const itemDate = dayjs(fullDate, 'DD/MM/YYYY');
-        if (!itemDate.isValid()) return false;
-
-        return (
-          (itemDate.isAfter(startDate) || itemDate.isSame(startDate)) &&
-          (itemDate.isBefore(endDate) || itemDate.isSame(endDate))
-        );
+        return {
+          'STT': index + 1,
+          'ID Đơn': `#${item.id || index + 1}`,
+          'Thời Gian Mua': fullDate,
+          'Khách Hàng': item.fullName || item.ho_ten || '---',
+          'Số Điện Thoại': item.phone || item.dien_thoai || '---',
+          'Địa Chỉ': item.address || item.dia_chi || '---',
+          'Tên Xe / Hãng': item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || '---',
+          'Màu Sắc': item.color || item.mau || '---',
+          'Số Khung': item.frameNumber || item.so_khung || '---',
+          'Số Acquy': item.batteryNumber || item.so_pin || '---',
+          'Giá Bán (VNĐ)': item.price
+            ? Number(item.price).toLocaleString('vi-VN')
+            : item.gia_xe
+            ? Number(item.gia_xe).toLocaleString('vi-VN')
+            : '0',
+          'Nhân Viên': item.staffName || item.nhan_vien || '---',
+          'Chi Nhánh': item.branchName || item.chi_nhanh || '---',
+        };
       });
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      worksheet['!cols'] = [
+        { wch: 6 },
+        { wch: 10 },
+        { wch: 16 },
+        { wch: 25 },
+        { wch: 15 },
+        { wch: 40 },
+        { wch: 25 },
+        { wch: 15 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 18 },
+        { wch: 20 },
+        { wch: 18 },
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'DanhSachKhachHang');
+      XLSX.writeFile(workbook, `Danh_Sach_Khach_Hang_${dayjs().format('DDMMYYYY_HHmmss')}.xlsx`);
+
+      message.success(`Đã xuất thành công toàn bộ ${filtered.length} dòng dữ liệu!`);
+      setIsExportModalOpen(false);
+    } catch (error) {
+      hideLoading();
+      message.error('Lỗi khi tải toàn bộ dữ liệu xuất Excel!');
+      console.error(error);
     }
-
-    if (staffName) filtered = filtered.filter((item) => (item.staffName || item.nhan_vien) === staffName);
-    if (branchName) filtered = filtered.filter((item) => (item.branchName || item.chi_nhanh) === branchName);
-
-    if (filtered.length === 0) {
-      message.warning('Không tìm thấy dữ liệu phù hợp!');
-      return;
-    }
-
-    const excelData = filtered.map((item, index) => {
-      const { fullDate } = parseDateDetails(item);
-      return {
-        'STT': index + 1,
-        'ID Đơn': `#${item.id || index + 1}`,
-        'Thời Gian Mua': fullDate,
-        'Khách Hàng': item.fullName || item.ho_ten || '---',
-        'Số Điện Thoại': item.phone || item.dien_thoai || '---',
-        'Địa Chỉ': item.address || item.dia_chi || '---',
-        'Tên Xe / Hãng': item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || '---',
-        'Màu Sắc': item.color || item.mau || '---',
-        'Số Khung': item.frameNumber || item.so_khung || '---',
-        'Số Acquy': item.batteryNumber || item.so_pin || '---',
-        'Giá Bán (VNĐ)': item.price ? Number(item.price).toLocaleString('vi-VN') : (item.gia_xe ? Number(item.gia_xe).toLocaleString('vi-VN') : '0'),
-        'Nhân Viên': item.staffName || item.nhan_vien || '---',
-        'Chi Nhánh': item.branchName || item.chi_nhanh || '---',
-      };
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
-    worksheet['!cols'] = [
-      { wch: 6 }, { wch: 10 }, { wch: 16 }, { wch: 25 }, { wch: 15 },
-      { wch: 40 }, { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 20 },
-      { wch: 18 }, { wch: 20 }, { wch: 18 },
-    ];
-
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'DanhSachKhachHang');
-    XLSX.writeFile(workbook, `Danh_Sach_Khach_Hang_${dayjs().format('DDMMYYYY_HHmmss')}.xlsx`);
-
-    message.success(`Đã xuất thành công ${filtered.length} dòng dữ liệu!`);
-    setIsExportModalOpen(false);
   };
 
   const filteredCustomers = customers.filter((item) => {
@@ -1109,7 +1145,6 @@ export default function App() {
           </div>
 
           <Space wrap style={{ flexShrink: 0 }}>
-            {/* Nút Admin Đổi mật khẩu chi nhánh đồng bộ lên Cloud */}
             {currentUser.role === 'admin' && (
               <Button
                 type="primary"
@@ -1177,7 +1212,7 @@ export default function App() {
         />
       </Card>
 
-      {/* 👑 MODAL ADMIN ĐỔI MẬT KHẨU ĐỒNG BỘ TOÀN HỆ THỐNG */}
+      {/* MODAL ADMIN ĐỔI MẬT KHẨU ĐỒNG BỘ TOÀN HỆ THỐNG */}
       <Modal
         title={
           <Space>
