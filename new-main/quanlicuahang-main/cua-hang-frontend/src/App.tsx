@@ -17,7 +17,6 @@ import {
   DatePicker,
   Select,
   Radio,
-  Tabs,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -33,10 +32,8 @@ import {
   LockOutlined,
   UserOutlined,
   LogoutOutlined,
-  UserAddOutlined,
-  IdcardOutlined,
-  TeamOutlined,
   KeyOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
@@ -48,7 +45,7 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
-// Interface Khách hàng
+// 1. Interface Dữ liệu Khách hàng
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -81,39 +78,47 @@ export interface Customer {
   [key: string]: any;
 }
 
-// Interface Tài khoản
-export interface UserAccount {
-  id: string;
+// 2. Interface 4 Tài khoản cố định
+export interface SystemAccount {
   username: string;
   password: string;
-  fullName: string;
+  displayName: string;
   branch: string;
   role: 'admin' | 'staff';
-  createdAt: string;
 }
 
-const DEFAULT_ACCOUNTS: UserAccount[] = [
+const DEFAULT_FIXED_ACCOUNTS: SystemAccount[] = [
   {
-    id: 'admin-01',
     username: 'admin',
     password: '123456',
-    fullName: 'Ban Quản Trị',
+    displayName: 'Ban Quản Trị (Admin)',
     branch: 'Chợ Mới',
     role: 'admin',
-    createdAt: '2026-01-01',
   },
   {
-    id: 'admin-02',
-    username: 'thanhtuoi',
+    username: 'chomoi',
     password: '123456',
-    fullName: 'Thanh Tươi',
+    displayName: 'Chi Nhánh Chợ Mới',
     branch: 'Chợ Mới',
-    role: 'admin',
-    createdAt: '2026-01-01',
+    role: 'staff',
+  },
+  {
+    username: 'lapvo',
+    password: '123456',
+    displayName: 'Chi Nhánh Lấp Vò',
+    branch: 'Lấp Vò',
+    role: 'staff',
+  },
+  {
+    username: 'myluong',
+    password: '123456',
+    displayName: 'Chi Nhánh Mỹ Luông',
+    branch: 'Mỹ Luông',
+    role: 'staff',
   },
 ];
 
-// Hàm bóc tách ngày
+// Hàm phân tích Ngày Mua
 const parseDateDetails = (customerData: any) => {
   if (!customerData) {
     const now = new Date();
@@ -177,7 +182,7 @@ const parseDateDetails = (customerData: any) => {
   return { day: '....', month: '....', year: '2026', fullDate: '---' };
 };
 
-// Hàm in hợp đồng A4
+// Hàm In Hợp Đồng A4
 const executePrintContract = (customer: Customer, selectedBranch: string = 'Chợ Mới') => {
   const { day, month, year } = parseDateDetails(customer);
 
@@ -404,29 +409,23 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
 };
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+  // 1. Quản lý trạng thái đăng nhập
+  const [currentUser, setCurrentUser] = useState<SystemAccount | null>(() => {
     const saved = localStorage.getItem('currentUser');
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [authLoading, setAuthLoading] = useState<boolean>(false);
 
-  const [userAccounts, setUserAccounts] = useState<UserAccount[]>(() => {
-    const stored = localStorage.getItem('userAccounts');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return DEFAULT_ACCOUNTS;
-      }
-    }
-    return DEFAULT_ACCOUNTS;
+  // 2. Danh sách 4 tài khoản hệ thống (lưu mật khẩu tùy chỉnh nếu Admin đổi)
+  const [accounts, setAccounts] = useState<SystemAccount[]>(() => {
+    const saved = localStorage.getItem('systemAccounts');
+    return saved ? JSON.parse(saved) : DEFAULT_FIXED_ACCOUNTS;
   });
 
-  const [isStaffModalOpen, setIsStaffModalOpen] = useState<boolean>(false);
-  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState<boolean>(false);
-  const [selectedStaffToEdit, setSelectedStaffToEdit] = useState<UserAccount | null>(null);
+  // Modal đổi mật khẩu dành cho Admin
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState<boolean>(false);
+  const [selectedAccountToEdit, setSelectedAccountToEdit] = useState<SystemAccount | null>(null);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -440,102 +439,66 @@ export default function App() {
   const [exportForm] = Form.useForm();
   const [form] = Form.useForm();
   const [loginForm] = Form.useForm();
-  const [registerForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
 
+  // State In Hợp Đồng
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
   const [selectedPrintCustomer, setSelectedPrintCustomer] = useState<Customer | null>(null);
   const [selectedBranchToPrint, setSelectedBranchToPrint] = useState<string>('Chợ Mới');
 
-  const saveAccounts = (newAccounts: UserAccount[]) => {
-    setUserAccounts(newAccounts);
-    localStorage.setItem('userAccounts', JSON.stringify(newAccounts));
-  };
-
+  // Xử lý Đăng nhập với 4 tài khoản cố định
   const handleLogin = (values: any) => {
     setAuthLoading(true);
     const { username, password } = values;
 
-    const user = userAccounts.find(
-      (acc) => acc.username.toLowerCase() === username.trim().toLowerCase() && acc.password === password
+    const matched = accounts.find(
+      (acc) =>
+        acc.username.toLowerCase() === username.trim().toLowerCase() &&
+        acc.password === password.trim()
     );
 
-    if (user) {
-      message.success(`Đăng nhập thành công: ${user.fullName} (${user.role === 'admin' ? 'Quản trị viên' : user.branch})!`);
-      localStorage.setItem('currentUser', JSON.stringify(user));
-      setCurrentUser(user);
+    if (matched) {
+      message.success(`Đăng nhập thành công: ${matched.displayName}!`);
+      localStorage.setItem('currentUser', JSON.stringify(matched));
+      setCurrentUser(matched);
     } else {
       message.error('Tên đăng nhập hoặc mật khẩu không chính xác!');
     }
     setAuthLoading(false);
   };
 
-  const handleRegister = (values: any) => {
-    setAuthLoading(true);
-    const { username, password, fullName, branch } = values;
-
-    const existing = userAccounts.find(
-      (acc) => acc.username.toLowerCase() === username.trim().toLowerCase()
-    );
-
-    if (existing) {
-      message.error('Tên đăng nhập này đã tồn tại! Vui lòng chọn tên khác.');
-      setAuthLoading(false);
-      return;
-    }
-
-    const newUser: UserAccount = {
-      id: 'staff-' + Date.now(),
-      username: username.trim(),
-      password: password.trim(),
-      fullName: fullName.trim(),
-      branch: branch || 'Chợ Mới',
-      role: 'staff',
-      createdAt: dayjs().format('YYYY-MM-DD HH:mm'),
-    };
-
-    const updated = [...userAccounts, newUser];
-    saveAccounts(updated);
-
-    localStorage.setItem('currentUser', JSON.stringify(newUser));
-    setCurrentUser(newUser);
-
-    message.success(`Chào mừng nhân viên mới: ${newUser.fullName}!`);
-    setAuthLoading(false);
-  };
-
-  const handleDeleteStaff = (staffId: string) => {
-    if (staffId === currentUser?.id) {
-      message.warning('Không thể tự xóa tài khoản đang đăng nhập!');
-      return;
-    }
-    const updated = userAccounts.filter((u) => u.id !== staffId);
-    saveAccounts(updated);
-    message.success('Đã xóa tài khoản nhân viên thành công!');
-  };
-
+  // Admin đổi mật khẩu cho chi nhánh
   const handleChangePassword = (values: any) => {
-    if (!selectedStaffToEdit) return;
+    if (!selectedAccountToEdit) return;
     const { newPassword } = values;
 
-    const updated = userAccounts.map((u) => {
-      if (u.id === selectedStaffToEdit.id) {
-        return { ...u, password: newPassword };
+    const updated = accounts.map((acc) => {
+      if (acc.username === selectedAccountToEdit.username) {
+        return { ...acc, password: newPassword };
       }
-      return u;
+      return acc;
     });
 
-    saveAccounts(updated);
-    message.success(`Đã đổi mật khẩu cho nhân viên ${selectedStaffToEdit.fullName} thành công!`);
-    setIsChangePasswordModalOpen(false);
+    setAccounts(updated);
+    localStorage.setItem('systemAccounts', JSON.stringify(updated));
+
+    // Nếu admin tự đổi mật khẩu của mình, cập nhật luôn currentUser
+    if (currentUser?.username === selectedAccountToEdit.username) {
+      const updatedCurrent = { ...currentUser, password: newPassword };
+      setCurrentUser(updatedCurrent);
+      localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
+    }
+
+    message.success(`Đã đổi mật khẩu cho tài khoản [${selectedAccountToEdit.username}] thành công!`);
+    setIsPasswordModalOpen(false);
     passwordForm.resetFields();
   };
 
+  // Đăng xuất
   const handleLogout = () => {
     localStorage.removeItem('currentUser');
     setCurrentUser(null);
     loginForm.resetFields();
-    registerForm.resetFields();
     message.info('Đã đăng xuất khỏi hệ thống');
   };
 
@@ -603,9 +566,8 @@ export default function App() {
   const handleOpenAddModal = () => {
     setEditingCustomer(null);
     form.resetFields();
-    if (currentUser && currentUser.role === 'staff') {
+    if (currentUser) {
       form.setFieldsValue({
-        staffName: currentUser.fullName,
         branchName: currentUser.branch,
       });
     }
@@ -647,7 +609,7 @@ export default function App() {
       setIsModalOpen(false);
       form.resetFields();
       fetchCustomers();
-    } catch (error) {
+    } catch {
       message.error('Lưu dữ liệu thất bại!');
     } finally {
       setSubmitting(false);
@@ -660,7 +622,7 @@ export default function App() {
       await axios.delete(`${BASE_API_URL}/customers/${id}`);
       message.success('Đã xóa thành công!');
       fetchCustomers();
-    } catch (error) {
+    } catch {
       message.error('Xóa thất bại!');
     }
   };
@@ -949,72 +911,7 @@ export default function App() {
     },
   ];
 
-  // Bảng Quản Lý Nhân Viên Cho Admin
-  const staffColumns: ColumnsType<UserAccount> = [
-    {
-      title: 'TÊN NHÂN VIÊN',
-      dataIndex: 'fullName',
-      key: 'fullName',
-      render: (text, record) => (
-        <div>
-          <strong>{text}</strong>
-          {record.role === 'admin' && <Tag color="red" style={{ marginLeft: 8 }}>Admin</Tag>}
-        </div>
-      ),
-    },
-    {
-      title: 'TÊN ĐĂNG NHẬP',
-      dataIndex: 'username',
-      key: 'username',
-      render: (text) => <Text code>{text}</Text>,
-    },
-    {
-      title: 'CHI NHÁNH',
-      dataIndex: 'branch',
-      key: 'branch',
-      render: (branch) => <Tag color="blue">{branch}</Tag>,
-    },
-    {
-      title: 'MẬT KHẨU HIỆN TẠI',
-      dataIndex: 'password',
-      key: 'password',
-      render: () => <Text type="secondary">••••••</Text>,
-    },
-    {
-      title: 'THAO TÁC CỦA ADMIN',
-      key: 'action',
-      render: (_, record) => (
-        <Space>
-          <Button
-            size="small"
-            icon={<KeyOutlined />}
-            onClick={() => {
-              setSelectedStaffToEdit(record);
-              setIsChangePasswordModalOpen(true);
-            }}
-          >
-            Đổi MK
-          </Button>
-          {record.role !== 'admin' && (
-            <Popconfirm
-              title="Xác nhận xóa tài khoản"
-              description={`Bạn có chắc muốn xóa quyền truy cập của nhân viên ${record.fullName}?`}
-              onConfirm={() => handleDeleteStaff(record.id)}
-              okText="Xóa"
-              cancelText="Hủy"
-              okButtonProps={{ danger: true }}
-            >
-              <Button size="small" danger icon={<DeleteOutlined />}>
-                Xóa
-              </Button>
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
-  ];
-
-  // GIAO DIỆN ĐĂNG NHẬP
+  // 👉 MÀN HÌNH ĐĂNG NHẬP (CHỈ ĐĂNG NHẬP - KHÔNG CÓ ĐĂNG KÝ)
   if (!currentUser) {
     return (
       <div
@@ -1023,7 +920,7 @@ export default function App() {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          background: 'linear-gradient(135deg, #1890ff 0%, #001529 100%)',
+          background: 'linear-gradient(135deg, #096dd9 0%, #001529 100%)',
           padding: '16px',
         }}
       >
@@ -1031,25 +928,26 @@ export default function App() {
           bordered={false}
           style={{
             width: '100%',
-            maxWidth: 440,
+            maxWidth: 420,
             borderRadius: 16,
-            boxShadow: '0 12px 30px rgba(0,0,0,0.25)',
-            padding: '16px 8px',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.3)',
+            padding: '24px 16px',
+            textAlign: 'center',
           }}
         >
-          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ marginBottom: 24 }}>
             <div
               style={{
-                width: 60,
-                height: 60,
+                width: 64,
+                height: 64,
                 background: '#e6f7ff',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 12px auto',
+                margin: '0 auto 16px auto',
                 color: '#1890ff',
-                fontSize: 26,
+                fontSize: 28,
               }}
             >
               <ShopOutlined />
@@ -1058,165 +956,75 @@ export default function App() {
               XE ĐIỆN THANH TƯƠI
             </Title>
             <Text type="secondary" style={{ fontSize: 13 }}>
-              Hệ thống Quản lý Khách hàng & Hợp đồng
+              Hệ thống Quản lý Bán xe & In Hợp đồng
             </Text>
           </div>
 
-          <Tabs
-            activeKey={authTab}
-            onChange={(key) => setAuthTab(key as any)}
-            centered
-            items={[
-              {
-                key: 'login',
-                label: (
-                  <span>
-                    <UserOutlined /> Đăng nhập
-                  </span>
-                ),
-                children: (
-                  <Form form={loginForm} layout="vertical" onFinish={handleLogin} size="large" style={{ marginTop: 8 }}>
-                    <Form.Item
-                      name="username"
-                      rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập!' }]}
-                    >
-                      <Input
-                        prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
-                        placeholder="Tên đăng nhập (admin / nhân viên)"
-                        style={{ borderRadius: 8 }}
-                      />
-                    </Form.Item>
+          <Form form={loginForm} layout="vertical" onFinish={handleLogin} size="large">
+            <Form.Item
+              name="username"
+              rules={[{ required: true, message: 'Vui lòng nhập tên tài khoản!' }]}
+            >
+              <Input
+                prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+                placeholder="Tài khoản (admin / lapvo / myluong / chomoi)"
+                style={{ borderRadius: 8 }}
+              />
+            </Form.Item>
 
-                    <Form.Item
-                      name="password"
-                      rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}
-                    >
-                      <Input.Password
-                        prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
-                        placeholder="Mật khẩu"
-                        style={{ borderRadius: 8 }}
-                      />
-                    </Form.Item>
+            <Form.Item
+              name="password"
+              rules={[{ required: true, message: 'Vui lòng nhập mật khẩu!' }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+                placeholder="Mật khẩu (mặc định: 123456)"
+                style={{ borderRadius: 8 }}
+              />
+            </Form.Item>
 
-                    <Form.Item style={{ marginTop: 20 }}>
-                      <Button
-                        type="primary"
-                        htmlType="submit"
-                        loading={authLoading}
-                        block
-                        style={{
-                          height: 44,
-                          borderRadius: 8,
-                          fontWeight: 600,
-                          fontSize: 15,
-                          backgroundColor: '#1890ff',
-                        }}
-                      >
-                        ĐĂNG NHẬP
-                      </Button>
-                    </Form.Item>
-                  </Form>
-                ),
-              },
-              {
-                key: 'register',
-                label: (
-                  <span>
-                    <UserAddOutlined /> Tạo tài khoản nhân viên
-                  </span>
-                ),
-                children: (
-                  <Form
-                    form={registerForm}
-                    layout="vertical"
-                    onFinish={handleRegister}
-                    size="large"
-                    style={{ marginTop: 8 }}
-                  >
-                    <Form.Item
-                      name="fullName"
-                      rules={[{ required: true, message: 'Vui lòng nhập họ và tên nhân viên!' }]}
-                    >
-                      <Input
-                        prefix={<IdcardOutlined style={{ color: '#bfbfbf' }} />}
-                        placeholder="Họ và tên nhân viên"
-                        style={{ borderRadius: 8 }}
-                      />
-                    </Form.Item>
+            <Form.Item style={{ marginTop: 24, marginBottom: 12 }}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={authLoading}
+                block
+                style={{
+                  height: 44,
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: 15,
+                  backgroundColor: '#1890ff',
+                }}
+              >
+                ĐĂNG NHẬP HỆ THỐNG
+              </Button>
+            </Form.Item>
+          </Form>
 
-                    <Form.Item
-                      name="branch"
-                      initialValue="Chợ Mới"
-                      rules={[{ required: true, message: 'Vui lòng chọn chi nhánh làm việc!' }]}
-                    >
-                      <Select
-                        placeholder="Chọn chi nhánh làm việc"
-                        options={[
-                          { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
-                          { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
-                          { label: 'Chi nhánh Mỹ Luông', value: 'Mỹ Luông' },
-                        ]}
-                      />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="username"
-                      rules={[{ required: true, message: 'Vui lòng đặt tên đăng nhập!' }]}
-                    >
-                      <Input
-                        prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
-                        placeholder="Tên đăng nhập (viết liền không dấu)"
-                        style={{ borderRadius: 8 }}
-                      />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="password"
-                      rules={[
-                        { required: true, message: 'Vui lòng đặt mật khẩu!' },
-                        { min: 4, message: 'Mật khẩu tối thiểu 4 ký tự!' },
-                      ]}
-                    >
-                      <Input.Password
-                        prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
-                        placeholder="Mật khẩu đăng nhập"
-                        style={{ borderRadius: 8 }}
-                      />
-                    </Form.Item>
-
-                    <Form.Item style={{ marginTop: 20 }}>
-                      <Button
-                        type="primary"
-                        htmlType="submit"
-                        loading={authLoading}
-                        block
-                        style={{
-                          height: 44,
-                          borderRadius: 8,
-                          fontWeight: 600,
-                          fontSize: 15,
-                          backgroundColor: '#52c41a',
-                          borderColor: '#52c41a',
-                        }}
-                      >
-                        ĐĂNG KÝ VÀ VÀO HỆ THỐNG
-                      </Button>
-                    </Form.Item>
-                  </Form>
-                ),
-              },
-            ]}
-          />
-
-          <Text type="secondary" style={{ fontSize: 12, textAlign: 'center', display: 'block', marginTop: 8 }}>
-            Hệ thống nội bộ các chi nhánh: Chợ Mới - Lấp Vò - Mỹ Luông
-          </Text>
+          <div
+            style={{
+              marginTop: 16,
+              padding: '10px',
+              backgroundColor: '#f5f5f5',
+              borderRadius: 8,
+              textAlign: 'left',
+              fontSize: 12,
+              color: '#595959',
+            }}
+          >
+            <div><strong>Danh sách tài khoản chi nhánh:</strong></div>
+            <div>• Quản trị viên: <Text code>admin</Text></div>
+            <div>• Chi nhánh Chợ Mới: <Text code>chomoi</Text></div>
+            <div>• Chi nhánh Lấp Vò: <Text code>lapvo</Text></div>
+            <div>• Chi nhánh Mỹ Luông: <Text code>myluong</Text></div>
+          </div>
         </Card>
       </div>
     );
   }
 
-  // GIAO DIỆN QUẢN LÝ
+  // 👉 GIAO DIỆN QUẢN LÝ CHÍNH
   return (
     <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
       <Card
@@ -1228,7 +1036,7 @@ export default function App() {
           margin: '0 auto',
         }}
       >
-        {/* THANH HEADER */}
+        {/* HEADER */}
         <div
           style={{
             display: 'flex',
@@ -1245,7 +1053,7 @@ export default function App() {
             </Title>
             <Space style={{ marginTop: 4 }}>
               <Text type="secondary" style={{ fontSize: '13px' }}>
-                Đang làm việc: <strong>{currentUser.fullName}</strong>
+                Đang làm việc: <strong>{currentUser.displayName}</strong>
               </Text>
               <Tag color={currentUser.role === 'admin' ? 'red' : 'blue'}>
                 {currentUser.role === 'admin' ? '👑 Quản Trị Viên (Admin)' : `Chi nhánh: ${currentUser.branch}`}
@@ -1254,14 +1062,18 @@ export default function App() {
           </div>
 
           <Space wrap style={{ flexShrink: 0 }}>
+            {/* Nút Admin Quản lý & Đổi mật khẩu cho các tài khoản */}
             {currentUser.role === 'admin' && (
               <Button
                 type="primary"
                 style={{ backgroundColor: '#fa8c16', borderColor: '#fa8c16', borderRadius: 6, fontWeight: 500 }}
-                icon={<TeamOutlined />}
-                onClick={() => setIsStaffModalOpen(true)}
+                icon={<SafetyCertificateOutlined />}
+                onClick={() => {
+                  setSelectedAccountToEdit(accounts[0]);
+                  setIsPasswordModalOpen(true);
+                }}
               >
-                Quản lý Nhân Viên ({userAccounts.length})
+                Quản lý Mật khẩu Chi Nhánh
               </Button>
             )}
 
@@ -1317,63 +1129,98 @@ export default function App() {
         />
       </Card>
 
-      {/* MODAL QUẢN LÝ NHÂN VIÊN (ADMIN) */}
+      {/* 👑 MODAL QUẢN LÝ MẬT KHẨU DÀNH CHO ADMIN */}
       <Modal
         title={
           <Space>
-            <TeamOutlined style={{ color: '#fa8c16' }} />
-            <span>Danh Sách & Quản Trị Tài Khoản Nhân Viên</span>
+            <SafetyCertificateOutlined style={{ color: '#fa8c16' }} />
+            <span>Quản Lý Mật Khẩu 4 Tài Khoản Hệ Thống</span>
           </Space>
         }
-        open={isStaffModalOpen}
-        onCancel={() => setIsStaffModalOpen(false)}
+        open={isPasswordModalOpen}
+        onCancel={() => setIsPasswordModalOpen(false)}
         footer={null}
-        width={850}
+        width={650}
         destroyOnClose
       >
         <div style={{ marginBottom: 16 }}>
           <Text type="secondary">
-            Tại đây Admin có toàn quyền kiểm tra thông tin, đặt lại mật khẩu hoặc xóa quyền truy cập của nhân viên thuộc các chi nhánh.
+            Admin có quyền xem và đổi mật khẩu đăng nhập của từng tài khoản chi nhánh.
           </Text>
         </div>
 
-        <Table<UserAccount>
-          dataSource={userAccounts}
-          columns={staffColumns}
-          rowKey="id"
+        <Table<SystemAccount>
+          dataSource={accounts}
+          rowKey="username"
           pagination={false}
           size="small"
           bordered
+          columns={[
+            {
+              title: 'TÊN TÀI KHOẢN',
+              dataIndex: 'username',
+              key: 'username',
+              render: (text, record) => (
+                <Space>
+                  <Text code strong>{text}</Text>
+                  {record.role === 'admin' && <Tag color="red">Admin</Tag>}
+                </Space>
+              ),
+            },
+            {
+              title: 'CHI NHÁNH',
+              dataIndex: 'displayName',
+              key: 'displayName',
+            },
+            {
+              title: 'MẬT KHẨU',
+              dataIndex: 'password',
+              key: 'password',
+              render: (pwd) => <Text copyable={{ text: pwd }}>••••••</Text>,
+            },
+            {
+              title: 'THAO TÁC',
+              key: 'action',
+              render: (_, record) => (
+                <Button
+                  size="small"
+                  icon={<KeyOutlined />}
+                  onClick={() => {
+                    setSelectedAccountToEdit(record);
+                    passwordForm.resetFields();
+                  }}
+                >
+                  Đổi MK
+                </Button>
+              ),
+            },
+          ]}
         />
-      </Modal>
 
-      {/* MODAL ĐỔI MẬT KHẨU NHÂN VIÊN */}
-      <Modal
-        title={`Đặt lại mật khẩu cho: ${selectedStaffToEdit?.fullName}`}
-        open={isChangePasswordModalOpen}
-        onCancel={() => setIsChangePasswordModalOpen(false)}
-        footer={null}
-        destroyOnClose
-        width={400}
-      >
-        <Form form={passwordForm} layout="vertical" onFinish={handleChangePassword} style={{ marginTop: 16 }}>
-          <Form.Item
-            name="newPassword"
-            label="Mật khẩu mới"
-            rules={[
-              { required: true, message: 'Vui lòng nhập mật khẩu mới!' },
-              { min: 4, message: 'Mật khẩu tối thiểu 4 ký tự!' },
-            ]}
+        {selectedAccountToEdit && (
+          <Card
+            type="inner"
+            title={`Đổi mật khẩu cho: [${selectedAccountToEdit.username}] - ${selectedAccountToEdit.displayName}`}
+            style={{ marginTop: 16 }}
           >
-            <Input.Password placeholder="Nhập mật khẩu mới..." />
-          </Form.Item>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button onClick={() => setIsChangePasswordModalOpen(false)}>Hủy</Button>
-            <Button type="primary" htmlType="submit">
-              Xác nhận đổi
-            </Button>
-          </div>
-        </Form>
+            <Form form={passwordForm} layout="inline" onFinish={handleChangePassword}>
+              <Form.Item
+                name="newPassword"
+                rules={[
+                  { required: true, message: 'Nhập MK mới!' },
+                  { min: 4, message: 'Tối thiểu 4 ký tự!' },
+                ]}
+              >
+                <Input.Password placeholder="Mật khẩu mới..." style={{ width: 220 }} />
+              </Form.Item>
+              <Form.Item>
+                <Button type="primary" htmlType="submit">
+                  Lưu Mật Khẩu
+                </Button>
+              </Form.Item>
+            </Form>
+          </Card>
+        )}
       </Modal>
 
       {/* MODAL CHỌN CHI NHÁNH IN HỢP ĐỒNG */}
