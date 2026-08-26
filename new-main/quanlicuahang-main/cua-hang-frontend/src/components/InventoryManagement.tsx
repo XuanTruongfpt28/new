@@ -18,6 +18,7 @@ import {
   Badge,
   Typography,
   Upload,
+  Popconfirm,
 } from 'antd';
 import {
   InboxOutlined,
@@ -31,6 +32,8 @@ import {
   FileExcelOutlined,
   DownloadOutlined,
   UploadOutlined,
+  DeleteOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
@@ -51,7 +54,7 @@ interface InventoryItem {
 
 interface InventoryLogItem {
   id?: number;
-  type: 'import' | 'transfer' | 'sale';
+  type: 'import' | 'transfer' | 'sale' | 'delete';
   brand: string;
   model: string;
   color: string;
@@ -90,9 +93,14 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [excelPreviewData, setExcelPreviewData] = useState<ExcelImportRow[]>([]);
 
+  // Modal Sửa nhanh số lượng
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [importForm] = Form.useForm();
   const [transferForm] = Form.useForm();
+  const [editForm] = Form.useForm();
 
   // Tải dữ liệu từ Supabase
   const fetchData = async () => {
@@ -122,7 +130,58 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     fetchData();
   }, []);
 
-  // 1. Tải file mẫu Excel chuẩn
+  // Xóa 1 mẫu xe khỏi kho
+  const handleDeleteItem = async (item: InventoryItem) => {
+    try {
+      const { error } = await supabase.from('Inventory').delete().eq('id', item.id);
+      if (error) throw error;
+
+      await supabase.from('InventoryLog').insert([
+        {
+          type: 'delete',
+          brand: item.brand,
+          model: item.model,
+          color: item.color,
+          quantity: item.quantity,
+          from_branch: item.branch,
+          note: 'Xóa bỏ mẫu xe do nhập sai',
+          created_by: currentUser.fullName,
+        },
+      ]);
+
+      message.success(`Đã xóa xe ${item.brand} ${item.model} (${item.color}) khỏi kho ${item.branch}!`);
+      fetchData();
+    } catch (err: any) {
+      message.error('Xóa thất bại: ' + err.message);
+    }
+  };
+
+  // Cập nhật lại số lượng tồn kho
+  const handleEditSubmit = async (values: any) => {
+    if (!editingItem) return;
+    setSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('Inventory')
+        .update({
+          quantity: Number(values.quantity),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editingItem.id);
+
+      if (error) throw error;
+
+      message.success('Đã cập nhật số lượng tồn kho!');
+      setIsEditModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      message.error('Lỗi khi cập nhật: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Tải file mẫu Excel chuẩn
   const handleDownloadSampleExcel = () => {
     const sampleData = [
       {
@@ -158,7 +217,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     XLSX.writeFile(workbook, 'Mau_File_Nhap_Xe_Thanh_Tuoi.xlsx');
   };
 
-  // 2. Đọc file Excel người dùng chọn và preview lên bảng
+  // Đọc file Excel người dùng chọn
   const handleFileSelect = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -194,10 +253,10 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
       }
     };
     reader.readAsArrayBuffer(file);
-    return false; // Ngăn Ant Design tự động upload qua HTTP POST
+    return false;
   };
 
-  // 3. Thực thi lưu toàn bộ danh sách Excel vào Supabase Cloud
+  // Lưu Excel vào Cloud
   const handleConfirmImportExcel = async () => {
     if (excelPreviewData.length === 0) return;
     setSubmitting(true);
@@ -205,7 +264,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
 
     try {
       for (const row of excelPreviewData) {
-        // Kiểm tra xe đã có trong chi nhánh chưa
         const { data: existing } = await supabase
           .from('Inventory')
           .select('*')
@@ -235,7 +293,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
           ]);
         }
 
-        // Ghi log giao dịch
         await supabase.from('InventoryLog').insert([
           {
             type: 'import',
@@ -251,7 +308,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
       }
 
       hide();
-      message.success(`Đã nhập thành công ${excelPreviewData.length} mẫu xe vào hệ thống kho!`);
+      message.success(`Đã nhập thành công ${excelPreviewData.length} mẫu xe vào kho!`);
       setIsExcelModalOpen(false);
       setExcelPreviewData([]);
       fetchData();
@@ -519,7 +576,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                   </Space>
 
                   <Space wrap>
-                    {/* Nút tải mẫu & Upload file Excel */}
                     <Button icon={<DownloadOutlined />} onClick={handleDownloadSampleExcel}>
                       Tải File Mẫu Excel
                     </Button>
@@ -568,7 +624,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
 
                 <Table<InventoryItem>
                   dataSource={filteredInventory}
-                  rowKey={(r) => `${r.branch}_${r.brand}_${r.model}_${r.color}`}
+                  rowKey={(r) => `${r.branch}_${r.brand}_${r.model}_${r.color}_${r.id}`}
                   loading={loading}
                   pagination={{ pageSize: 10, showSizeChanger: false }}
                   size="middle"
@@ -578,14 +634,14 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                       dataIndex: 'branch',
                       key: 'branch',
                       render: (b) => <Tag color="blue" style={{ fontWeight: 600 }}>{b}</Tag>,
-                      width: 140,
+                      width: 130,
                     },
                     {
                       title: 'HÃNG XE',
                       dataIndex: 'brand',
                       key: 'brand',
                       render: (b) => <Tag color="cyan">{b}</Tag>,
-                      width: 120,
+                      width: 110,
                     },
                     {
                       title: 'MODEL XE',
@@ -598,14 +654,14 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                       dataIndex: 'color',
                       key: 'color',
                       render: (c) => <Tag color="geekblue">{c}</Tag>,
-                      width: 130,
+                      width: 120,
                     },
                     {
                       title: 'SỐ LƯỢNG TỒN',
                       dataIndex: 'quantity',
                       key: 'quantity',
                       align: 'center',
-                      width: 150,
+                      width: 140,
                       render: (qty) =>
                         qty <= 1 ? (
                           <Badge count={`${qty} xe`} style={{ backgroundColor: '#ff4d4f', fontWeight: 700 }} />
@@ -620,8 +676,42 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                       dataIndex: 'updated_at',
                       key: 'updated_at',
                       align: 'center',
-                      width: 170,
+                      width: 160,
                       render: (dt) => (dt ? dayjs(dt).format('DD/MM/YYYY HH:mm') : '---'),
+                    },
+                    {
+                      title: 'THAO TÁC',
+                      key: 'action',
+                      align: 'center',
+                      width: 150,
+                      render: (_, record) => (
+                        <Space>
+                          <Button
+                            type="link"
+                            size="small"
+                            icon={<EditOutlined />}
+                            onClick={() => {
+                              setEditingItem(record);
+                              editForm.setFieldsValue({ quantity: record.quantity });
+                              setIsEditModalOpen(true);
+                            }}
+                          >
+                            Sửa
+                          </Button>
+                          <Popconfirm
+                            title="Xác nhận xóa mẫu xe"
+                            description={`Bạn có chắc muốn xóa xe [${record.brand} ${record.model} - ${record.color}] khỏi kho ${record.branch}?`}
+                            onConfirm={() => handleDeleteItem(record)}
+                            okText="Xóa"
+                            cancelText="Hủy"
+                            okButtonProps={{ danger: true }}
+                          >
+                            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                              Xóa
+                            </Button>
+                          </Popconfirm>
+                        </Space>
+                      ),
                     },
                   ]}
                 />
@@ -658,6 +748,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                       render: (t) => {
                         if (t === 'import') return <Tag color="green">Nhập NCC</Tag>;
                         if (t === 'transfer') return <Tag color="purple">Chuyển Shop</Tag>;
+                        if (t === 'delete') return <Tag color="red">Xóa Bỏ</Tag>;
                         return <Tag color="orange">Bán Hàng</Tag>;
                       },
                       width: 120,
@@ -686,7 +777,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                       title: 'ĐẾN CHI NHÁNH',
                       dataIndex: 'to_branch',
                       key: 'to_branch',
-                      render: (b) => (b ? <Tag color="blue">{b}</Tag> : <Text type="secondary">Khách mua</Text>),
+                      render: (b) => (b ? <Tag color="blue">{b}</Tag> : <Text type="secondary">Khách mua / Xóa</Text>),
                       width: 130,
                     },
                     {
@@ -707,6 +798,28 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
           },
         ]}
       />
+
+      {/* MODAL SỬA SỐ LƯỢNG TỒN KHO */}
+      <Modal
+        title={`Chỉnh Sửa Số Lượng: ${editingItem?.brand} ${editingItem?.model} (${editingItem?.branch})`}
+        open={isEditModalOpen}
+        onCancel={() => setIsEditModalOpen(false)}
+        footer={null}
+        destroyOnClose
+        width={400}
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleEditSubmit} style={{ marginTop: 16 }}>
+          <Form.Item name="quantity" label="Số lượng tồn kho thực tế" rules={[{ required: true, message: 'Nhập số lượng!' }]}>
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button onClick={() => setIsEditModalOpen(false)}>Hủy</Button>
+            <Button type="primary" htmlType="submit" loading={submitting}>
+              Cập Nhật Số Lượng
+            </Button>
+          </div>
+        </Form>
+      </Modal>
 
       {/* MODAL XÁC NHẬN NHẬP TỪ EXCEL */}
       <Modal
@@ -782,7 +895,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         </div>
       </Modal>
 
-      {/* MODAL 1: NHẬP THỦ CÔNG */}
+      {/* MODAL NHẬP THỦ CÔNG */}
       <Modal
         title={
           <Space>
@@ -846,7 +959,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         </Form>
       </Modal>
 
-      {/* MODAL 2: LUÂN CHUYỂN */}
+      {/* MODAL LUÂN CHUYỂN */}
       <Modal
         title={
           <Space>
