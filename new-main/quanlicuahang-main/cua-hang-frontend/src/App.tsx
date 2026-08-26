@@ -37,11 +37,13 @@ import {
   SafetyCertificateOutlined,
   OrderedListOutlined,
   BarChartOutlined,
+  InboxOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { supabase } from './supabase';
 import { SalesAnalytics } from './components/SalesAnalytics';
+import { InventoryManagement } from './components/InventoryManagement';
 
 dayjs.extend(customParseFormat);
 
@@ -97,7 +99,7 @@ const DEFAULT_FIXED_ACCOUNTS: SystemAccount[] = [
   { username: 'myluong', password: '123456', fullName: 'Chi Nhánh Mỹ Luông', branch: 'Mỹ Luông', role: 'staff' },
 ];
 
-const parseDateDetails = (customerData: any) => {
+export const parseDateDetails = (customerData: any) => {
   if (!customerData) {
     const now = new Date();
     return {
@@ -612,6 +614,7 @@ export default function App() {
     setIsModalOpen(true);
   };
 
+  // Lưu Khách hàng & TỰ ĐỘNG TRỪ TỒN KHO khi tạo đơn mới
   const handleFormSubmit = async (values: any) => {
     setSubmitting(true);
     try {
@@ -620,7 +623,48 @@ export default function App() {
         message.success('Cập nhật thành công!');
       } else {
         await axios.post(`${BASE_API_URL}/customers`, values);
-        message.success('Thêm mới thành công!');
+        message.success('Thêm mới khách hàng thành công!');
+
+        // 🔄 TỰ ĐỘNG TRỪ TỒN KHO TẠI SHOP KHI BÁN XE
+        const branch = values.branchName || currentUser?.branch || 'Chợ Mới';
+        const brand = values.brand || '';
+        const model = values.model || '';
+        const color = values.color || '';
+
+        if (brand && model && color) {
+          const { data: invItem } = await supabase
+            .from('Inventory')
+            .select('*')
+            .eq('branch', branch)
+            .ilike('brand', brand.trim())
+            .ilike('model', model.trim())
+            .ilike('color', color.trim())
+            .maybeSingle();
+
+          if (invItem && Number(invItem.quantity) > 0) {
+            await supabase
+              .from('Inventory')
+              .update({
+                quantity: Number(invItem.quantity) - 1,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', invItem.id);
+
+            await supabase.from('InventoryLog').insert([
+              {
+                type: 'sale',
+                brand: brand.trim(),
+                model: model.trim(),
+                color: color.trim(),
+                quantity: 1,
+                from_branch: branch,
+                note: `Bán cho khách: ${values.fullName || 'Khách lẻ'}`,
+                created_by: currentUser?.fullName,
+              },
+            ]);
+            message.info(`Đã tự động trừ 1 xe ${brand} ${model} trong kho của ${branch}.`);
+          }
+        }
       }
       setIsModalOpen(false);
       form.resetFields();
@@ -1078,7 +1122,7 @@ export default function App() {
     );
   }
 
-  // 👉 Tùy biến danh sách Tabs theo quyền: Admin thấy 2 Tab, Chi nhánh chỉ thấy 1 Tab
+  // Cấu hình Tabs theo quyền (Admin thấy cả tab Báo cáo, Chi nhánh chỉ thấy Khách hàng & Tồn kho)
   const tabItems = [
     {
       key: 'customers',
@@ -1117,7 +1161,16 @@ export default function App() {
         </div>
       ),
     },
-    ...(currentUser?.role === 'admin'
+    {
+      key: 'inventory',
+      label: (
+        <span>
+          <InboxOutlined /> Quản Lý Tồn Kho & Luân Chuyển
+        </span>
+      ),
+      children: <InventoryManagement currentUser={currentUser} />,
+    },
+    ...(currentUser.role === 'admin'
       ? [
           {
             key: 'analytics',
@@ -1214,7 +1267,7 @@ export default function App() {
           </Space>
         </div>
 
-        {/* CHUYỂN TAB (ADMIN THẤY 2 TAB, CHI NHÁNH CHỈ THẤY 1 TAB) */}
+        {/* TABS ĐIỀU HƯỚNG */}
         <Tabs
           activeKey={activeTab}
           onChange={(k) => setActiveTab(k)}
