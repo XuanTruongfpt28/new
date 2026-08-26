@@ -17,6 +17,7 @@ import {
   Tabs,
   Badge,
   Typography,
+  Upload,
 } from 'antd';
 import {
   InboxOutlined,
@@ -27,8 +28,12 @@ import {
   ShopOutlined,
   CarOutlined,
   AlertOutlined,
+  FileExcelOutlined,
+  DownloadOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
 import { supabase } from '../supabase';
 import type { SystemAccount } from '../App';
 
@@ -58,6 +63,15 @@ interface InventoryLogItem {
   created_at?: string;
 }
 
+interface ExcelImportRow {
+  branch: string;
+  brand: string;
+  model: string;
+  color: string;
+  quantity: number;
+  note?: string;
+}
+
 interface InventoryManagementProps {
   currentUser: SystemAccount;
 }
@@ -70,14 +84,17 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
   const [filterBranch, setFilterBranch] = useState<string>(currentUser.role === 'admin' ? 'all' : currentUser.branch);
   const [searchText, setSearchText] = useState('');
 
+  // Modals
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [excelPreviewData, setExcelPreviewData] = useState<ExcelImportRow[]>([]);
 
+  const [submitting, setSubmitting] = useState(false);
   const [importForm] = Form.useForm();
   const [transferForm] = Form.useForm();
 
-  // Tải dữ liệu tồn kho & nhật ký từ Supabase
+  // Tải dữ liệu từ Supabase
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -105,7 +122,148 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     fetchData();
   }, []);
 
-  // Xử lý Nhập hàng từ Nhà Cung Cấp
+  // 1. Tải file mẫu Excel chuẩn
+  const handleDownloadSampleExcel = () => {
+    const sampleData = [
+      {
+        'Chi Nhánh': 'Chợ Mới',
+        'Hãng Xe': 'Yadea',
+        'Model Xe': 'I8',
+        'Màu Sắc': 'Trắng Sữa',
+        'Số Lượng': 5,
+        'Ghi Chú': 'Lô xe nhập đợt 1',
+      },
+      {
+        'Chi Nhánh': 'Lấp Vò',
+        'Hãng Xe': 'Yadea',
+        'Model Xe': 'OVA',
+        'Màu Sắc': 'Vàng Cam Đất',
+        'Số Lượng': 3,
+        'Ghi Chú': 'Lô xe nhập đợt 1',
+      },
+      {
+        'Chi Nhánh': 'Mỹ Luông',
+        'Hãng Xe': 'Dkbike',
+        'Model Xe': 'Xzone',
+        'Màu Sắc': 'Xám Bóng',
+        'Số Lượng': 4,
+        'Ghi Chú': 'Lô xe nhập đợt 1',
+      },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData);
+    worksheet['!cols'] = [{ wch: 16 }, { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 12 }, { wch: 30 }];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'MauNhapXe');
+    XLSX.writeFile(workbook, 'Mau_File_Nhap_Xe_Thanh_Tuoi.xlsx');
+  };
+
+  // 2. Đọc file Excel người dùng chọn và preview lên bảng
+  const handleFileSelect = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const rawJson: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName]);
+
+        if (rawJson.length === 0) {
+          message.warning('File Excel không có dữ liệu!');
+          return;
+        }
+
+        const formattedRows: ExcelImportRow[] = rawJson.map((row: any) => ({
+          branch: String(row['Chi Nhánh'] || row['chi_nhanh'] || currentUser.branch).trim(),
+          brand: String(row['Hãng Xe'] || row['hang_xe'] || row['Hãng'] || '').trim(),
+          model: String(row['Model Xe'] || row['model_xe'] || row['Model'] || row['Tên Xe'] || '').trim(),
+          color: String(row['Màu Sắc'] || row['mau_sac'] || row['Màu'] || 'Tiêu chuẩn').trim(),
+          quantity: Number(row['Số Lượng'] || row['so_luong'] || row['SL'] || 1),
+          note: String(row['Ghi Chú'] || row['ghi_chu'] || 'Nhập theo file Excel').trim(),
+        })).filter(item => item.brand && item.model);
+
+        if (formattedRows.length === 0) {
+          message.error('Không tìm thấy cột thông tin hợp lệ (Hãng Xe, Model Xe, Số Lượng)!');
+          return;
+        }
+
+        setExcelPreviewData(formattedRows);
+        setIsExcelModalOpen(true);
+      } catch (err: any) {
+        message.error('Định dạng file Excel không hợp lệ!');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    return false; // Ngăn Ant Design tự động upload qua HTTP POST
+  };
+
+  // 3. Thực thi lưu toàn bộ danh sách Excel vào Supabase Cloud
+  const handleConfirmImportExcel = async () => {
+    if (excelPreviewData.length === 0) return;
+    setSubmitting(true);
+    const hide = message.loading('Đang xử lý nhập kho toàn bộ danh sách...', 0);
+
+    try {
+      for (const row of excelPreviewData) {
+        // Kiểm tra xe đã có trong chi nhánh chưa
+        const { data: existing } = await supabase
+          .from('Inventory')
+          .select('*')
+          .eq('branch', row.branch)
+          .ilike('brand', row.brand)
+          .ilike('model', row.model)
+          .ilike('color', row.color)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from('Inventory')
+            .update({
+              quantity: Number(existing.quantity) + Number(row.quantity),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+        } else {
+          await supabase.from('Inventory').insert([
+            {
+              branch: row.branch,
+              brand: row.brand,
+              model: row.model,
+              color: row.color,
+              quantity: Number(row.quantity),
+            },
+          ]);
+        }
+
+        // Ghi log giao dịch
+        await supabase.from('InventoryLog').insert([
+          {
+            type: 'import',
+            brand: row.brand,
+            model: row.model,
+            color: row.color,
+            quantity: Number(row.quantity),
+            to_branch: row.branch,
+            note: row.note || 'Nhập kho hàng loạt qua file Excel',
+            created_by: currentUser.fullName,
+          },
+        ]);
+      }
+
+      hide();
+      message.success(`Đã nhập thành công ${excelPreviewData.length} mẫu xe vào hệ thống kho!`);
+      setIsExcelModalOpen(false);
+      setExcelPreviewData([]);
+      fetchData();
+    } catch (err: any) {
+      hide();
+      message.error('Lỗi khi lưu dữ liệu Excel: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Nhập hàng thủ công 1 mẫu
   const handleImportSubmit = async (values: any) => {
     setSubmitting(true);
     const { branch, brand, model, color, quantity, note } = values;
@@ -164,7 +322,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Xử lý Luân chuyển xe giữa các chi nhánh
+  // Luân chuyển xe giữa các shop
   const handleTransferSubmit = async (values: any) => {
     setSubmitting(true);
     const { fromBranch, toBranch, brand, model, color, quantity, note } = values;
@@ -176,7 +334,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
 
     try {
-      // 1. Kiểm tra tồn kho tại shop gửi
       const { data: fromItem } = await supabase
         .from('Inventory')
         .select('*')
@@ -192,7 +349,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         return;
       }
 
-      // 2. Trừ tồn kho chi nhánh gửi
       await supabase
         .from('Inventory')
         .update({
@@ -201,7 +357,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         })
         .eq('id', fromItem.id);
 
-      // 3. Cộng tồn kho chi nhánh nhận
       const { data: toItem } = await supabase
         .from('Inventory')
         .select('*')
@@ -231,7 +386,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         ]);
       }
 
-      // 4. Ghi lịch sử luân chuyển
       await supabase.from('InventoryLog').insert([
         {
           type: 'transfer',
@@ -257,7 +411,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Lọc dữ liệu hiển thị
   const filteredInventory = useMemo(() => {
     return inventoryList.filter((item) => {
       const matchBranch = filterBranch === 'all' ? true : item.branch === filterBranch;
@@ -271,7 +424,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     });
   }, [inventoryList, filterBranch, searchText]);
 
-  // Thống kê nhanh
   const totalStock = filteredInventory.reduce((sum, item) => sum + item.quantity, 0);
   const lowStockCount = filteredInventory.filter((item) => item.quantity <= 1).length;
 
@@ -304,7 +456,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         <Col xs={24} sm={8}>
           <Card bordered style={{ borderRadius: 8, backgroundColor: '#f6ffed', borderColor: '#b7eb8f' }}>
             <Statistic
-              title={<span style={{ color: '#389e0d', fontWeight: 600 }}>Số Chi Nhánh Đang Quản Lý</span>}
+              title={<span style={{ color: '#389e0d', fontWeight: 600 }}>Số Chi Nhánh Quản Lý</span>}
               value={3}
               suffix="shop"
               prefix={<ShopOutlined style={{ color: '#52c41a' }} />}
@@ -358,7 +510,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                       placeholder="Tìm theo hãng, model, màu xe..."
                       value={searchText}
                       onChange={(e) => setSearchText(e.target.value)}
-                      style={{ width: 260 }}
+                      style={{ width: 240 }}
                       allowClear
                     />
                     <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>
@@ -367,6 +519,25 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                   </Space>
 
                   <Space wrap>
+                    {/* Nút tải mẫu & Upload file Excel */}
+                    <Button icon={<DownloadOutlined />} onClick={handleDownloadSampleExcel}>
+                      Tải File Mẫu Excel
+                    </Button>
+
+                    <Upload
+                      beforeUpload={handleFileSelect}
+                      showUploadList={false}
+                      accept=".xlsx, .xls"
+                    >
+                      <Button
+                        type="primary"
+                        style={{ backgroundColor: '#13c2c2', borderColor: '#13c2c2' }}
+                        icon={<FileExcelOutlined />}
+                      >
+                        Nhập Hàng Bằng File Excel
+                      </Button>
+                    </Upload>
+
                     <Button
                       type="primary"
                       style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
@@ -377,7 +548,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                         setIsImportModalOpen(true);
                       }}
                     >
-                      Nhập Xe Từ NCC
+                      Nhập Thủ Công
                     </Button>
 
                     <Button
@@ -390,7 +561,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                         setIsTransferModalOpen(true);
                       }}
                     >
-                      Luân Chuyển Giữa Các Shop
+                      Luân Chuyển Shop
                     </Button>
                   </Space>
                 </div>
@@ -537,7 +708,81 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         ]}
       />
 
-      {/* MODAL 1: NHẬP HÀNG TỪ NHÀ CUNG CẤP */}
+      {/* MODAL XÁC NHẬN NHẬP TỪ EXCEL */}
+      <Modal
+        title={
+          <Space>
+            <FileExcelOutlined style={{ color: '#13c2c2' }} />
+            <span>Xác Nhận Dữ Liệu Nhập Kho Từ File Excel ({excelPreviewData.length} mẫu xe)</span>
+          </Space>
+        }
+        open={isExcelModalOpen}
+        onCancel={() => setIsExcelModalOpen(false)}
+        footer={null}
+        width={800}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 12 }}>
+          <Text type="secondary">
+            Vui lòng kiểm tra kỹ danh sách xe đọc được từ file Excel trước khi tiến hành cập nhật vào cơ sở dữ liệu:
+          </Text>
+        </div>
+
+        <Table<ExcelImportRow>
+          dataSource={excelPreviewData}
+          rowKey={(r, index) => `${r.branch}_${r.model}_${index}`}
+          pagination={{ pageSize: 5 }}
+          size="small"
+          bordered
+          columns={[
+            {
+              title: 'Chi Nhánh',
+              dataIndex: 'branch',
+              render: (b) => <Tag color="blue">{b}</Tag>,
+            },
+            {
+              title: 'Hãng Xe',
+              dataIndex: 'brand',
+              render: (b) => <strong>{b}</strong>,
+            },
+            {
+              title: 'Model',
+              dataIndex: 'model',
+              render: (m) => <strong>{m}</strong>,
+            },
+            {
+              title: 'Màu Sắc',
+              dataIndex: 'color',
+              render: (c) => <Tag color="cyan">{c}</Tag>,
+            },
+            {
+              title: 'Số Lượng',
+              dataIndex: 'quantity',
+              align: 'center',
+              render: (q) => <Tag color="green" style={{ fontWeight: 700 }}>+{q} xe</Tag>,
+            },
+            {
+              title: 'Ghi Chú',
+              dataIndex: 'note',
+            },
+          ]}
+        />
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <Button onClick={() => setIsExcelModalOpen(false)}>Hủy</Button>
+          <Button
+            type="primary"
+            icon={<UploadOutlined />}
+            loading={submitting}
+            onClick={handleConfirmImportExcel}
+            style={{ backgroundColor: '#13c2c2', borderColor: '#13c2c2' }}
+          >
+            Lưu Vào Hệ Thống Tồn Kho
+          </Button>
+        </div>
+      </Modal>
+
+      {/* MODAL 1: NHẬP THỦ CÔNG */}
       <Modal
         title={
           <Space>
@@ -601,7 +846,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         </Form>
       </Modal>
 
-      {/* MODAL 2: LUÂN CHUYỂN XE GIỮA CÁC SHOP */}
+      {/* MODAL 2: LUÂN CHUYỂN */}
       <Modal
         title={
           <Space>
