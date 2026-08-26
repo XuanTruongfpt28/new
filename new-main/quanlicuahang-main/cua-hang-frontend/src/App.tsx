@@ -37,6 +37,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
+import { supabase } from './supabase';
 
 dayjs.extend(customParseFormat);
 
@@ -45,7 +46,7 @@ const { RangePicker } = DatePicker;
 
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
-// 1. Interface Dữ liệu Khách hàng
+// Interface Khách hàng
 export interface Customer {
   id?: number;
   fullName?: string;
@@ -78,11 +79,11 @@ export interface Customer {
   [key: string]: any;
 }
 
-// 2. Interface 4 Tài khoản cố định
+// Interface 4 Tài khoản cố định
 export interface SystemAccount {
   username: string;
   password: string;
-  displayName: string;
+  fullName: string;
   branch: string;
   role: 'admin' | 'staff';
 }
@@ -91,28 +92,28 @@ const DEFAULT_FIXED_ACCOUNTS: SystemAccount[] = [
   {
     username: 'admin',
     password: '123456',
-    displayName: 'Ban Quản Trị (Admin)',
+    fullName: 'Ban Quản Trị (Admin)',
     branch: 'Chợ Mới',
     role: 'admin',
   },
   {
     username: 'chomoi',
     password: '123456',
-    displayName: 'Chi Nhánh Chợ Mới',
+    fullName: 'Chi Nhánh Chợ Mới',
     branch: 'Chợ Mới',
     role: 'staff',
   },
   {
     username: 'lapvo',
     password: '123456',
-    displayName: 'Chi Nhánh Lấp Vò',
+    fullName: 'Chi Nhánh Lấp Vò',
     branch: 'Lấp Vò',
     role: 'staff',
   },
   {
     username: 'myluong',
     password: '123456',
-    displayName: 'Chi Nhánh Mỹ Luông',
+    fullName: 'Chi Nhánh Mỹ Luông',
     branch: 'Mỹ Luông',
     role: 'staff',
   },
@@ -409,7 +410,7 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
 };
 
 export default function App() {
-  // 1. Quản lý trạng thái đăng nhập
+  // 1. Quản lý trạng thái phiên làm việc
   const [currentUser, setCurrentUser] = useState<SystemAccount | null>(() => {
     const saved = localStorage.getItem('currentUser');
     return saved ? JSON.parse(saved) : null;
@@ -417,13 +418,10 @@ export default function App() {
 
   const [authLoading, setAuthLoading] = useState<boolean>(false);
 
-  // 2. Danh sách 4 tài khoản hệ thống (lưu mật khẩu tùy chỉnh nếu Admin đổi)
-  const [accounts, setAccounts] = useState<SystemAccount[]>(() => {
-    const saved = localStorage.getItem('systemAccounts');
-    return saved ? JSON.parse(saved) : DEFAULT_FIXED_ACCOUNTS;
-  });
+  // 2. Danh sách 4 tài khoản được đồng bộ từ Supabase Cloud
+  const [accounts, setAccounts] = useState<SystemAccount[]>(DEFAULT_FIXED_ACCOUNTS);
 
-  // Modal đổi mật khẩu dành cho Admin
+  // Modal quản lý mật khẩu của Admin
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState<boolean>(false);
   const [selectedAccountToEdit, setSelectedAccountToEdit] = useState<SystemAccount | null>(null);
 
@@ -446,52 +444,101 @@ export default function App() {
   const [selectedPrintCustomer, setSelectedPrintCustomer] = useState<Customer | null>(null);
   const [selectedBranchToPrint, setSelectedBranchToPrint] = useState<string>('Chợ Mới');
 
-  // Xử lý Đăng nhập với 4 tài khoản cố định
-  const handleLogin = (values: any) => {
+  // Tải danh sách tài khoản mới nhất trực tiếp từ Supabase Cloud
+  const fetchAccountsFromCloud = async () => {
+    try {
+      const { data, error } = await supabase.from('Account').select('*');
+      if (!error && data && data.length > 0) {
+        const cloudAccounts: SystemAccount[] = data.map((item: any) => ({
+          username: item.username,
+          password: item.password,
+          fullName: item.fullName || item.fullname || item.username,
+          branch: item.branch,
+          role: item.role || (item.username === 'admin' ? 'admin' : 'staff'),
+        }));
+        setAccounts(cloudAccounts);
+      }
+    } catch (err) {
+      console.error('Lỗi tải tài khoản từ Supabase:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAccountsFromCloud();
+  }, []);
+
+  // 👉 Đăng nhập: Luôn kiểm tra mật khẩu trực tiếp từ Supabase Cloud
+  const handleLogin = async (values: any) => {
     setAuthLoading(true);
     const { username, password } = values;
+    const cleanUsername = username.trim().toLowerCase();
+    const cleanPassword = password.trim();
 
-    const matched = accounts.find(
-      (acc) =>
-        acc.username.toLowerCase() === username.trim().toLowerCase() &&
-        acc.password === password.trim()
-    );
+    try {
+      // 1. Kiểm tra trực tiếp trên Supabase
+      const { data, error } = await supabase
+        .from('Account')
+        .select('*')
+        .ilike('username', cleanUsername)
+        .eq('password', cleanPassword)
+        .maybeSingle();
 
-    if (matched) {
-      message.success(`Đăng nhập thành công: ${matched.displayName}!`);
-      localStorage.setItem('currentUser', JSON.stringify(matched));
-      setCurrentUser(matched);
-    } else {
-      message.error('Tên đăng nhập hoặc mật khẩu không chính xác!');
+      if (!error && data) {
+        const loggedInUser: SystemAccount = {
+          username: data.username,
+          password: data.password,
+          fullName: data.fullName || data.fullname || data.username,
+          branch: data.branch,
+          role: data.role || (data.username === 'admin' ? 'admin' : 'staff'),
+        };
+        message.success(`Đăng nhập thành công: ${loggedInUser.fullName}!`);
+        localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
+        setCurrentUser(loggedInUser);
+        setAuthLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.error('Lỗi xác thực Supabase:', err);
     }
+
+    message.error('Tên tài khoản hoặc mật khẩu không chính xác!');
     setAuthLoading(false);
   };
 
-  // Admin đổi mật khẩu cho chi nhánh
-  const handleChangePassword = (values: any) => {
+  // 👉 Admin đổi mật khẩu: Ghi trực tiếp lên Supabase Cloud để đồng bộ toàn bộ máy
+  const handleChangePassword = async (values: any) => {
     if (!selectedAccountToEdit) return;
     const { newPassword } = values;
+    const cleanNewPassword = newPassword.trim();
 
-    const updated = accounts.map((acc) => {
-      if (acc.username === selectedAccountToEdit.username) {
-        return { ...acc, password: newPassword };
+    try {
+      // Cập nhật lên Supabase
+      const { error } = await supabase
+        .from('Account')
+        .update({ password: cleanNewPassword })
+        .eq('username', selectedAccountToEdit.username);
+
+      if (error) {
+        message.error('Lỗi khi cập nhật mật khẩu lên Cloud: ' + error.message);
+        return;
       }
-      return acc;
-    });
 
-    setAccounts(updated);
-    localStorage.setItem('systemAccounts', JSON.stringify(updated));
+      message.success(`Đã đổi mật khẩu cho tài khoản [${selectedAccountToEdit.username}] thành công trên toàn hệ thống!`);
+      setIsPasswordModalOpen(false);
+      passwordForm.resetFields();
 
-    // Nếu admin tự đổi mật khẩu của mình, cập nhật luôn currentUser
-    if (currentUser?.username === selectedAccountToEdit.username) {
-      const updatedCurrent = { ...currentUser, password: newPassword };
-      setCurrentUser(updatedCurrent);
-      localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
+      // Cập nhật lại state máy hiện tại
+      await fetchAccountsFromCloud();
+
+      // Nếu admin đổi mật khẩu của chính mình
+      if (currentUser?.username === selectedAccountToEdit.username) {
+        const updatedCurrent = { ...currentUser, password: cleanNewPassword };
+        setCurrentUser(updatedCurrent);
+        localStorage.setItem('currentUser', JSON.stringify(updatedCurrent));
+      }
+    } catch (err: any) {
+      message.error('Lỗi kết nối máy chủ Supabase: ' + err.message);
     }
-
-    message.success(`Đã đổi mật khẩu cho tài khoản [${selectedAccountToEdit.username}] thành công!`);
-    setIsPasswordModalOpen(false);
-    passwordForm.resetFields();
   };
 
   // Đăng xuất
@@ -911,7 +958,7 @@ export default function App() {
     },
   ];
 
-  // 👉 MÀN HÌNH ĐĂNG NHẬP (CHỈ ĐĂNG NHẬP - KHÔNG CÓ ĐĂNG KÝ)
+  // Màn hình Đăng nhập
   if (!currentUser) {
     return (
       <div
@@ -1013,7 +1060,7 @@ export default function App() {
               color: '#595959',
             }}
           >
-            <div><strong>Danh sách tài khoản chi nhánh:</strong></div>
+            <div><strong>Danh sách 4 tài khoản hệ thống:</strong></div>
             <div>• Quản trị viên: <Text code>admin</Text></div>
             <div>• Chi nhánh Chợ Mới: <Text code>chomoi</Text></div>
             <div>• Chi nhánh Lấp Vò: <Text code>lapvo</Text></div>
@@ -1024,7 +1071,7 @@ export default function App() {
     );
   }
 
-  // 👉 GIAO DIỆN QUẢN LÝ CHÍNH
+  // Giao diện Quản lý Chính
   return (
     <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
       <Card
@@ -1053,7 +1100,7 @@ export default function App() {
             </Title>
             <Space style={{ marginTop: 4 }}>
               <Text type="secondary" style={{ fontSize: '13px' }}>
-                Đang làm việc: <strong>{currentUser.displayName}</strong>
+                Đang làm việc: <strong>{currentUser.fullName}</strong>
               </Text>
               <Tag color={currentUser.role === 'admin' ? 'red' : 'blue'}>
                 {currentUser.role === 'admin' ? '👑 Quản Trị Viên (Admin)' : `Chi nhánh: ${currentUser.branch}`}
@@ -1062,18 +1109,19 @@ export default function App() {
           </div>
 
           <Space wrap style={{ flexShrink: 0 }}>
-            {/* Nút Admin Quản lý & Đổi mật khẩu cho các tài khoản */}
+            {/* Nút Admin Đổi mật khẩu chi nhánh đồng bộ lên Cloud */}
             {currentUser.role === 'admin' && (
               <Button
                 type="primary"
                 style={{ backgroundColor: '#fa8c16', borderColor: '#fa8c16', borderRadius: 6, fontWeight: 500 }}
                 icon={<SafetyCertificateOutlined />}
                 onClick={() => {
+                  fetchAccountsFromCloud();
                   setSelectedAccountToEdit(accounts[0]);
                   setIsPasswordModalOpen(true);
                 }}
               >
-                Quản lý Mật khẩu Chi Nhánh
+                Quản lý Mật khẩu Chi Nhánh (Cloud)
               </Button>
             )}
 
@@ -1129,23 +1177,23 @@ export default function App() {
         />
       </Card>
 
-      {/* 👑 MODAL QUẢN LÝ MẬT KHẨU DÀNH CHO ADMIN */}
+      {/* 👑 MODAL ADMIN ĐỔI MẬT KHẨU ĐỒNG BỘ TOÀN HỆ THỐNG */}
       <Modal
         title={
           <Space>
             <SafetyCertificateOutlined style={{ color: '#fa8c16' }} />
-            <span>Quản Lý Mật Khẩu 4 Tài Khoản Hệ Thống</span>
+            <span>Quản Lý Mật Khẩu 4 Tài Khoản (Đồng Bộ Cloud)</span>
           </Space>
         }
         open={isPasswordModalOpen}
         onCancel={() => setIsPasswordModalOpen(false)}
         footer={null}
-        width={650}
+        width={700}
         destroyOnClose
       >
         <div style={{ marginBottom: 16 }}>
           <Text type="secondary">
-            Admin có quyền xem và đổi mật khẩu đăng nhập của từng tài khoản chi nhánh.
+            Mật khẩu được lưu trực tiếp trên Cloud. Khi Admin đổi mật khẩu tại đây, tất cả điện thoại và máy tính khác đều phải dùng mật khẩu mới để đăng nhập.
           </Text>
         </div>
 
@@ -1168,12 +1216,12 @@ export default function App() {
               ),
             },
             {
-              title: 'CHI NHÁNH',
-              dataIndex: 'displayName',
-              key: 'displayName',
+              title: 'TÊN CHI NHÁNH',
+              dataIndex: 'fullName',
+              key: 'fullName',
             },
             {
-              title: 'MẬT KHẨU',
+              title: 'MẬT KHẨU TRÊN CLOUD',
               dataIndex: 'password',
               key: 'password',
               render: (pwd) => <Text copyable={{ text: pwd }}>••••••</Text>,
@@ -1200,7 +1248,7 @@ export default function App() {
         {selectedAccountToEdit && (
           <Card
             type="inner"
-            title={`Đổi mật khẩu cho: [${selectedAccountToEdit.username}] - ${selectedAccountToEdit.displayName}`}
+            title={`Đổi mật khẩu cho: [${selectedAccountToEdit.username}] - ${selectedAccountToEdit.fullName}`}
             style={{ marginTop: 16 }}
           >
             <Form form={passwordForm} layout="inline" onFinish={handleChangePassword}>
@@ -1211,11 +1259,11 @@ export default function App() {
                   { min: 4, message: 'Tối thiểu 4 ký tự!' },
                 ]}
               >
-                <Input.Password placeholder="Mật khẩu mới..." style={{ width: 220 }} />
+                <Input.Password placeholder="Nhập mật khẩu mới..." style={{ width: 220 }} />
               </Form.Item>
               <Form.Item>
                 <Button type="primary" htmlType="submit">
-                  Lưu Mật Khẩu
+                  Lưu Lên Toàn Hệ Thống
                 </Button>
               </Form.Item>
             </Form>
