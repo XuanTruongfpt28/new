@@ -380,7 +380,8 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
                 <div class="bold">IV: Thoả thuận và thống nhất giữa hai bên như sau</div>
                 <div>* Giá bán xe chưa bao gồm phí trước bạ, phí bấm biển số và phí dịch vụ ( đối với xe máy điện)</div>
                 <div>* Dịch vụ bấm biển số (không bao bảo hiểm và phí kẹp biển số):</div>
-                <div class="bold">* Quà tặng: NÓN BẢO HIỂM</div>
+                <div class="bold">* Quà tặng: NÓN BẢO HIỂM</div><br /><br />
+                
                 <div class="bold italic" style="margin-top: 2px;">*ƯU ĐÃI ĐẶC BIỆT: Miễn công cứu hộ tận nhà 12 tháng khi xe KÉO GA KHÔNG CHẠY (15km)</div>
               </td>
               <td>
