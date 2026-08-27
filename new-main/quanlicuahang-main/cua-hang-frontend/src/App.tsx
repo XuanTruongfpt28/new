@@ -668,7 +668,6 @@ export default function App() {
         await axios.post(`${BASE_API_URL}/customers`, values);
         message.success('Thêm mới thành công!');
 
-        // TỰ ĐỘNG CHUYỂN TRẠNG THÁI SỐ KHUNG SANG "ĐÃ BÁN"
         const frameNum = (values.frameNumber || '').trim();
         const branch = values.branchName || currentUser?.branch || 'Chợ Mới';
 
@@ -1052,11 +1051,13 @@ export default function App() {
       <div
         style={{
           minHeight: '100vh',
+          width: '100%',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           background: 'linear-gradient(135deg, #096dd9 0%, #001529 100%)',
-          padding: '16px',
+          padding: '12px',
+          boxSizing: 'border-box',
         }}
       >
         <Card
@@ -1169,7 +1170,7 @@ export default function App() {
         </span>
       ),
       children: (
-        <div>
+        <div style={{ width: '100%', overflowX: 'hidden' }}>
           <div style={{ marginBottom: 16 }}>
             <Input
               placeholder="Tìm theo tên khách, SĐT, địa chỉ, màu sắc, tên xe, Số Khung, Số Acquy hoặc chi nhánh..."
@@ -1178,7 +1179,7 @@ export default function App() {
               onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchText(e.target.value)}
               allowClear
               size="middle"
-              style={{ borderRadius: 8, maxWidth: 600 }}
+              style={{ borderRadius: 8, width: '100%', maxWidth: 600 }}
             />
           </div>
 
@@ -1191,9 +1192,10 @@ export default function App() {
               pageSize: 10,
               showTotal: (total) => `Tổng cộng ${total} khách hàng`,
               showSizeChanger: false,
+              simple: window.innerWidth < 768,
             }}
             scroll={{ x: 1750 }}
-            size="middle"
+            size="small"
           />
         </div>
       ),
@@ -1229,43 +1231,65 @@ export default function App() {
   ];
 
   return (
-    <div style={{ padding: '16px', backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
+    <div
+      style={{
+        padding: '8px',
+        backgroundColor: '#f0f2f5',
+        minHeight: '100vh',
+        width: '100%',
+        maxWidth: '100vw',
+        overflowX: 'hidden',
+        boxSizing: 'border-box',
+      }}
+    >
       <Card
         bordered={false}
+        bodyStyle={{ padding: window.innerWidth < 768 ? '12px 8px' : '20px' }}
         style={{
           borderRadius: 12,
           boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+          width: '100%',
           maxWidth: 1600,
           margin: '0 auto',
+          boxSizing: 'border-box',
         }}
       >
+        {/* HEADER RESPONSIVE CHO MOBILE & DESKTOP */}
         <div
           style={{
             display: 'flex',
-            flexWrap: 'wrap',
+            flexDirection: window.innerWidth < 768 ? 'column' : 'row',
             justifyContent: 'space-between',
-            alignItems: 'center',
+            alignItems: window.innerWidth < 768 ? 'flex-start' : 'center',
             gap: '12px',
             marginBottom: 16,
             borderBottom: '1px solid #f0f0f0',
             paddingBottom: 12,
+            width: '100%',
           }}
         >
-          <div style={{ minWidth: '240px', flex: '1 1 auto' }}>
-            <Title level={3} style={{ margin: 0, fontSize: '22px', color: '#1f1f1f' }}>
+          <div>
+            <Title level={3} style={{ margin: 0, fontSize: window.innerWidth < 768 ? '18px' : '22px', color: '#1f1f1f' }}>
               XE ĐIỆN THANH TƯƠI
             </Title>
-            <Space style={{ marginTop: 4 }}>
+            <Space wrap style={{ marginTop: 4 }}>
               <Text type="secondary" style={{ fontSize: '13px' }}>
                 Đang làm việc: <strong>{currentUser.fullName}</strong>
               </Text>
               <Tag color={currentUser.role === 'admin' ? 'red' : 'blue'}>
-                {currentUser.role === 'admin' ? '👑 Quản Trị Viên (Admin)' : `Chi nhánh: ${currentUser.branch}`}
+                {currentUser.role === 'admin' ? '👑 Admin' : `CN: ${currentUser.branch}`}
               </Tag>
             </Space>
           </div>
 
-          <Space wrap style={{ flexShrink: 0 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px',
+              width: window.innerWidth < 768 ? '100%' : 'auto',
+            }}
+          >
             {currentUser.role === 'admin' && (
               <Button
                 type="primary"
@@ -1277,7 +1301,7 @@ export default function App() {
                   setIsPasswordModalOpen(true);
                 }}
               >
-                Quản lý Mật khẩu Chi Nhánh (Cloud)
+                Đổi MK Cloud
               </Button>
             )}
 
@@ -1301,9 +1325,10 @@ export default function App() {
             <Button danger icon={<LogoutOutlined />} onClick={handleLogout} style={{ borderRadius: 6 }}>
               Đăng xuất
             </Button>
-          </Space>
+          </div>
         </div>
 
+        {/* TABS ĐIỀU HƯỚNG */}
         <Tabs
           activeKey={activeTab}
           onChange={(k) => setActiveTab(k)}
@@ -1323,7 +1348,8 @@ export default function App() {
         open={isPasswordModalOpen}
         onCancel={() => setIsPasswordModalOpen(false)}
         footer={null}
-        width={750}
+        width="95%"
+        style={{ maxWidth: '750px' }}
         destroyOnClose
       >
         <div style={{ marginBottom: 16 }}>
@@ -1356,7 +1382,7 @@ export default function App() {
               key: 'fullName',
             },
             {
-              title: 'MẬT KHẨU TRÊN CLOUD',
+              title: 'MẬT KHẨU',
               dataIndex: 'password',
               key: 'password',
               render: (pwd) => <Text copyable={{ text: pwd }}>••••••</Text>,
@@ -1386,7 +1412,7 @@ export default function App() {
             title={`Đổi mật khẩu cho: [${selectedAccountToEdit.username}] - ${selectedAccountToEdit.fullName}`}
             style={{ marginTop: 16 }}
           >
-            <Form form={passwordForm} layout="inline" onFinish={handleChangePassword}>
+            <Form form={passwordForm} layout="vertical" onFinish={handleChangePassword}>
               <Form.Item
                 name="newPassword"
                 rules={[
@@ -1394,10 +1420,10 @@ export default function App() {
                   { min: 4, message: 'Tối thiểu 4 ký tự!' },
                 ]}
               >
-                <Input.Password placeholder="Nhập mật khẩu mới..." style={{ width: 220 }} />
+                <Input.Password placeholder="Nhập mật khẩu mới..." style={{ width: '100%' }} />
               </Form.Item>
               <Form.Item>
-                <Button type="primary" htmlType="submit">
+                <Button type="primary" htmlType="submit" block>
                   Lưu Lên Toàn Hệ Thống
                 </Button>
               </Form.Item>
@@ -1421,7 +1447,8 @@ export default function App() {
         cancelText="Hủy"
         okButtonProps={{ style: { backgroundColor: '#722ed1', borderColor: '#722ed1' } }}
         destroyOnClose
-        width={420}
+        width="95%"
+        style={{ maxWidth: '420px' }}
       >
         <div style={{ padding: '12px 0' }}>
           <Text style={{ display: 'block', marginBottom: 10 }}>
