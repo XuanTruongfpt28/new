@@ -99,6 +99,58 @@ const DEFAULT_FIXED_ACCOUNTS: SystemAccount[] = [
   { username: 'myluong', password: '123456', fullName: 'Chi Nhánh Mỹ Luông', branch: 'Mỹ Luông', role: 'staff' },
 ];
 
+// Hàm quét và gom toàn bộ các cột hãng/model phân nhánh mới từ Google Sheets
+export const extractVehicleInfo = (item: Customer) => {
+  if (item.vehicleName && item.vehicleName.trim() && item.vehicleName.trim() !== '---') {
+    return item.vehicleName.trim();
+  }
+
+  const directCombine = [item.brand, item.model].filter(Boolean).join(' ').trim();
+  if (directCombine && directCombine !== '---') {
+    return directCombine;
+  }
+
+  // Tự động quét tất cả các cột chứa từ khóa Hãng / Mẫu / Model sinh ra từ Form rẽ nhánh
+  const dynamicValues: string[] = [];
+  Object.keys(item).forEach((key) => {
+    const lowerKey = key.toLowerCase();
+    const isVehicleField =
+      lowerKey.includes('hãng') ||
+      lowerKey.includes('hang') ||
+      lowerKey.includes('mẫu') ||
+      lowerKey.includes('mau xe') ||
+      lowerKey.includes('model') ||
+      lowerKey.includes('yadea') ||
+      lowerKey.includes('vinfast') ||
+      lowerKey.includes('sonsu') ||
+      lowerKey.includes('jp') ||
+      lowerKey.includes('velax') ||
+      lowerKey.includes('omee') ||
+      lowerKey.includes('osta') ||
+      lowerKey.includes('ossy');
+
+    if (
+      isVehicleField &&
+      !lowerKey.includes('màu') &&
+      !lowerKey.includes('mau_sac') &&
+      !lowerKey.includes('timestamp') &&
+      !lowerKey.includes('khung') &&
+      !lowerKey.includes('pin')
+    ) {
+      const val = item[key];
+      if (typeof val === 'string' && val.trim() && val.trim() !== 'SUCCESS' && val.trim() !== '---') {
+        dynamicValues.push(val.trim());
+      }
+    }
+  });
+
+  if (dynamicValues.length > 0) {
+    return Array.from(new Set(dynamicValues)).join(' ');
+  }
+
+  return '---';
+};
+
 export const parseDateDetails = (customerData: any) => {
   if (!customerData) {
     const now = new Date();
@@ -171,7 +223,7 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
   const hoTen = customer.fullName || customer.ho_ten || '';
   const dienThoai = customer.phone || customer.dien_thoai || '';
   const diaChi = customer.address || customer.dia_chi || '';
-  const modelXe = customer.vehicleName || [customer.brand, customer.model].filter(Boolean).join(' ') || '';
+  const modelXe = extractVehicleInfo(customer);
   const mauXe = customer.color || customer.mau || '';
   const soKhung = customer.frameNumber || customer.so_khung || '';
   const soPin = customer.batteryNumber || customer.so_pin || '';
@@ -555,8 +607,9 @@ export default function App() {
   const brandOptions = useMemo(() => {
     const brandSet = new Set<string>();
     customers.forEach((c) => {
-      const brand = (c.brand || (c.vehicleName || '').split(' ')[0] || '').trim();
-      if (brand) brandSet.add(brand);
+      const fullVName = extractVehicleInfo(c);
+      const b = (c.brand || fullVName.split(' ')[0] || '').trim();
+      if (b && b !== '---') brandSet.add(b);
     });
     return Array.from(brandSet).map((b) => ({ label: b, value: b }));
   }, [customers]);
@@ -594,7 +647,8 @@ export default function App() {
 
   const handleOpenEditModal = (record: Customer) => {
     setEditingCustomer(record);
-    const nameParts = (record.vehicleName || '').split(' ');
+    const fullVName = extractVehicleInfo(record);
+    const nameParts = fullVName !== '---' ? fullVName.split(' ') : [];
     const brand = record.brand || nameParts[0] || '';
     const model = record.model || nameParts.slice(1).join(' ') || '';
 
@@ -614,7 +668,6 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  // Lưu Khách hàng & TỰ ĐỘNG TRỪ TỒN KHO khi tạo đơn mới
   const handleFormSubmit = async (values: any) => {
     setSubmitting(true);
     try {
@@ -623,9 +676,9 @@ export default function App() {
         message.success('Cập nhật thành công!');
       } else {
         await axios.post(`${BASE_API_URL}/customers`, values);
-        message.success('Thêm mới khách hàng thành công!');
+        message.success('Thêm mới thành công!');
 
-        // 🔄 TỰ ĐỘNG TRỪ TỒN KHO TẠI SHOP KHI BÁN XE
+        // Tự động trừ tồn kho
         const branch = values.branchName || currentUser?.branch || 'Chợ Mới';
         const brand = values.brand || '';
         const model = values.model || '';
@@ -662,7 +715,6 @@ export default function App() {
                 created_by: currentUser?.fullName,
               },
             ]);
-            message.info(`Đã tự động trừ 1 xe ${brand} ${model} trong kho của ${branch}.`);
           }
         }
       }
@@ -746,7 +798,7 @@ export default function App() {
           'Khách Hàng': item.fullName || item.ho_ten || '---',
           'Số Điện Thoại': item.phone || item.dien_thoai || '---',
           'Địa Chỉ': item.address || item.dia_chi || '---',
-          'Tên Xe / Hãng': item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ') || '---',
+          'Tên Xe / Hãng': extractVehicleInfo(item),
           'Màu Sắc': item.color || item.mau || '---',
           'Số Khung': item.frameNumber || item.so_khung || '---',
           'Số Acquy': item.batteryNumber || item.so_pin || '---',
@@ -792,7 +844,7 @@ export default function App() {
 
   const filteredCustomers = customers.filter((item) => {
     const searchLower = searchText.toLowerCase();
-    const fullVehicleName = item.vehicleName || [item.brand, item.model].filter(Boolean).join(' ');
+    const fullVehicleName = extractVehicleInfo(item);
     const name = item.fullName || item.ho_ten || '';
     const phone = item.phone || item.dien_thoai || '';
     const address = item.address || item.dia_chi || '';
@@ -873,13 +925,12 @@ export default function App() {
     },
     {
       title: 'TÊN XE / HÃNG',
-      dataIndex: 'vehicleName',
       key: 'vehicleName',
       render: (_: any, record: Customer) => {
-        const name = record.vehicleName || [record.brand, record.model].filter(Boolean).join(' ');
-        return <strong style={{ color: '#262626', whiteSpace: 'nowrap' }}>{name || '---'}</strong>;
+        const name = extractVehicleInfo(record);
+        return <strong style={{ color: '#262626', whiteSpace: 'nowrap' }}>{name}</strong>;
       },
-      width: 160,
+      width: 170,
     },
     {
       title: 'MÀU XE',
@@ -1122,7 +1173,6 @@ export default function App() {
     );
   }
 
-  // Cấu hình Tabs theo quyền (Admin thấy cả tab Báo cáo, Chi nhánh chỉ thấy Khách hàng & Tồn kho)
   const tabItems = [
     {
       key: 'customers',
