@@ -106,46 +106,50 @@ export const extractVehicleInfo = (item: Customer) => {
   }
 
   const directCombine = [item.brand, item.model].filter(Boolean).join(' ').trim();
-  if (directCombine && directCombine !== '---') {
+  if (directCombine && directCombine !== '---' && directCombine.length > 1) {
     return directCombine;
   }
 
-  // Tự động quét tất cả các cột chứa từ khóa Hãng / Mẫu / Model sinh ra từ Form rẽ nhánh
-  const dynamicValues: string[] = [];
+  let foundBrand = '';
+  let foundModel = '';
+
+  const excludedKeys = [
+    'id', 'fullname', 'ho_ten', 'phone', 'dien_thoai', 'address', 'dia_chi',
+    'color', 'mau', 'price', 'gia_xe', 'staffname', 'nhan_vien', 'branchname',
+    'chi_nhanh', 'framenumber', 'so_khung', 'batterynumber', 'so_pin', 'imageurl',
+    'formtimestamp', 'timestamp', 'ngay_mua', 'created_at', 'createdat', 'dấu thời gian'
+  ];
+
   Object.keys(item).forEach((key) => {
-    const lowerKey = key.toLowerCase();
-    const isVehicleField =
-      lowerKey.includes('hãng') ||
-      lowerKey.includes('hang') ||
-      lowerKey.includes('mẫu') ||
-      lowerKey.includes('mau xe') ||
-      lowerKey.includes('model') ||
-      lowerKey.includes('yadea') ||
-      lowerKey.includes('vinfast') ||
-      lowerKey.includes('sonsu') ||
-      lowerKey.includes('jp') ||
-      lowerKey.includes('velax') ||
-      lowerKey.includes('omee') ||
-      lowerKey.includes('osta') ||
-      lowerKey.includes('ossy');
+    const lowerKey = key.toLowerCase().trim();
+    const rawVal = item[key];
+
+    if (!rawVal || typeof rawVal !== 'string') return;
+    const val = rawVal.trim();
+    if (!val || val === '---' || val === 'SUCCESS') return;
+
+    if (excludedKeys.some((k) => lowerKey.includes(k))) return;
+
+    if (lowerKey === 'chọn hãng' || lowerKey === 'hãng' || lowerKey.startsWith('hãng [')) {
+      foundBrand = val;
+      return;
+    }
 
     if (
-      isVehicleField &&
-      !lowerKey.includes('màu') &&
-      !lowerKey.includes('mau_sac') &&
-      !lowerKey.includes('timestamp') &&
-      !lowerKey.includes('khung') &&
-      !lowerKey.includes('pin')
+      lowerKey.includes('mẫu xe') ||
+      lowerKey.includes('model') ||
+      lowerKey.startsWith('cột ') ||
+      lowerKey.startsWith('cot ')
     ) {
-      const val = item[key];
-      if (typeof val === 'string' && val.trim() && val.trim() !== 'SUCCESS' && val.trim() !== '---') {
-        dynamicValues.push(val.trim());
-      }
+      foundModel = val;
     }
   });
 
-  if (dynamicValues.length > 0) {
-    return Array.from(new Set(dynamicValues)).join(' ');
+  if (foundBrand || foundModel) {
+    if (foundModel.toLowerCase().startsWith(foundBrand.toLowerCase())) {
+      return foundModel;
+    }
+    return [foundBrand, foundModel].filter(Boolean).join(' ').trim();
   }
 
   return '---';
@@ -1317,7 +1321,6 @@ export default function App() {
           </Space>
         </div>
 
-        {/* TABS ĐIỀU HƯỚNG */}
         <Tabs
           activeKey={activeTab}
           onChange={(k) => setActiveTab(k)}
