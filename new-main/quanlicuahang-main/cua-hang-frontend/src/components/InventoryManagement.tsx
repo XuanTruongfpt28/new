@@ -93,7 +93,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [excelPreviewData, setExcelPreviewData] = useState<ExcelImportRow[]>([]);
 
-  // Modal Sửa nhanh số lượng
+  // Sửa nhanh
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 
@@ -102,7 +102,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
   const [transferForm] = Form.useForm();
   const [editForm] = Form.useForm();
 
-  // Tải dữ liệu từ Supabase
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -130,7 +129,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     fetchData();
   }, []);
 
-  // Xóa 1 mẫu xe khỏi kho
   const handleDeleteItem = async (item: InventoryItem) => {
     try {
       const { error } = await supabase.from('Inventory').delete().eq('id', item.id);
@@ -156,7 +154,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Cập nhật lại số lượng tồn kho
   const handleEditSubmit = async (values: any) => {
     if (!editingItem) return;
     setSubmitting(true);
@@ -181,33 +178,12 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Tải file mẫu Excel chuẩn
   const handleDownloadSampleExcel = () => {
     const sampleData = [
-      {
-        'Chi Nhánh': 'Chợ Mới',
-        'Hãng Xe': 'Yadea',
-        'Model Xe': 'I8',
-        'Màu Sắc': 'Trắng Sữa',
-        'Số Lượng': 5,
-        'Ghi Chú': 'Lô xe nhập đợt 1',
-      },
-      {
-        'Chi Nhánh': 'Lấp Vò',
-        'Hãng Xe': 'Yadea',
-        'Model Xe': 'OVA',
-        'Màu Sắc': 'Vàng Cam Đất',
-        'Số Lượng': 3,
-        'Ghi Chú': 'Lô xe nhập đợt 1',
-      },
-      {
-        'Chi Nhánh': 'Mỹ Luông',
-        'Hãng Xe': 'Dkbike',
-        'Model Xe': 'Xzone',
-        'Màu Sắc': 'Xám Bóng',
-        'Số Lượng': 4,
-        'Ghi Chú': 'Lô xe nhập đợt 1',
-      },
+      { 'Chi Nhánh': 'Chợ Mới', 'Hãng Xe': 'Yadea', 'Model Xe': 'I8', 'Màu Sắc': 'Trắng Sữa', 'Số Lượng': 5, 'Ghi Chú': 'Lô đợt 1' },
+      { 'Chi Nhánh': 'Lấp Vò', 'Hãng Xe': 'Yadea', 'Model Xe': 'OVA', 'Màu Sắc': 'Vàng Cam Đất', 'Số Lượng': 3, 'Ghi Chú': 'Lô đợt 1' },
+      { 'Chi Nhánh': 'Mỹ Luông 3', 'Hãng Xe': 'Dkbike', 'Model Xe': 'Xzone', 'Màu Sắc': 'Xám Bóng', 'Số Lượng': 4, 'Ghi Chú': 'Lô đợt 1' },
+      { 'Chi Nhánh': 'Mỹ Luông 4', 'Hãng Xe': 'Vinfast', 'Model Xe': 'Feliz 2', 'Màu Sắc': 'Đen', 'Số Lượng': 2, 'Ghi Chú': 'Lô đợt 1' },
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(sampleData);
@@ -217,7 +193,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     XLSX.writeFile(workbook, 'Mau_File_Nhap_Xe_Thanh_Tuoi.xlsx');
   };
 
-  // Đọc file Excel người dùng chọn
   const handleFileSelect = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -232,14 +207,18 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
           return;
         }
 
-        const formattedRows: ExcelImportRow[] = rawJson.map((row: any) => ({
-          branch: String(row['Chi Nhánh'] || row['chi_nhanh'] || currentUser.branch).trim(),
-          brand: String(row['Hãng Xe'] || row['hang_xe'] || row['Hãng'] || '').trim(),
-          model: String(row['Model Xe'] || row['model_xe'] || row['Model'] || row['Tên Xe'] || '').trim(),
-          color: String(row['Màu Sắc'] || row['mau_sac'] || row['Màu'] || 'Tiêu chuẩn').trim(),
-          quantity: Number(row['Số Lượng'] || row['so_luong'] || row['SL'] || 1),
-          note: String(row['Ghi Chú'] || row['ghi_chu'] || 'Nhập theo file Excel').trim(),
-        })).filter(item => item.brand && item.model);
+        const formattedRows: ExcelImportRow[] = rawJson.map((row: any) => {
+          let branchName = String(row['Chi Nhánh'] || row['chi_nhanh'] || currentUser.branch).trim();
+          if (branchName.toLowerCase() === 'mỹ luông') branchName = 'Mỹ Luông 3';
+          return {
+            branch: branchName,
+            brand: String(row['Hãng Xe'] || row['hang_xe'] || row['Hãng'] || '').trim(),
+            model: String(row['Model Xe'] || row['model_xe'] || row['Model'] || row['Tên Xe'] || '').trim(),
+            color: String(row['Màu Sắc'] || row['mau_sac'] || row['Màu'] || 'Tiêu chuẩn').trim(),
+            quantity: Number(row['Số Lượng'] || row['so_luong'] || row['SL'] || 1),
+            note: String(row['Ghi Chú'] || row['ghi_chu'] || 'Nhập theo file Excel').trim(),
+          };
+        }).filter((item) => item.brand && item.model);
 
         if (formattedRows.length === 0) {
           message.error('Không tìm thấy cột thông tin hợp lệ (Hãng Xe, Model Xe, Số Lượng)!');
@@ -256,7 +235,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     return false;
   };
 
-  // Lưu Excel vào Cloud
   const handleConfirmImportExcel = async () => {
     if (excelPreviewData.length === 0) return;
     setSubmitting(true);
@@ -320,7 +298,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Nhập hàng thủ công 1 mẫu
   const handleImportSubmit = async (values: any) => {
     setSubmitting(true);
     const { branch, brand, model, color, quantity, note } = values;
@@ -379,7 +356,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Luân chuyển xe giữa các shop
   const handleTransferSubmit = async (values: any) => {
     setSubmitting(true);
     const { fromBranch, toBranch, brand, model, color, quantity, note } = values;
@@ -486,7 +462,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
 
   return (
     <div style={{ paddingTop: 8 }}>
-      {/* THỐNG KÊ TỔNG QUAN */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={8}>
           <Card bordered style={{ borderRadius: 8, backgroundColor: '#e6f7ff', borderColor: '#91caff' }}>
@@ -514,7 +489,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
           <Card bordered style={{ borderRadius: 8, backgroundColor: '#f6ffed', borderColor: '#b7eb8f' }}>
             <Statistic
               title={<span style={{ color: '#389e0d', fontWeight: 600 }}>Số Chi Nhánh Quản Lý</span>}
-              value={3}
+              value={4}
               suffix="shop"
               prefix={<ShopOutlined style={{ color: '#52c41a' }} />}
               valueStyle={{ color: '#52c41a', fontWeight: 700 }}
@@ -535,15 +510,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
             ),
             children: (
               <Card size="small" style={{ borderRadius: 8 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    marginBottom: 16,
-                  }}
-                >
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
                   <Space wrap>
                     {currentUser.role === 'admin' ? (
                       <Select
@@ -554,7 +521,8 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                           { label: 'Tất cả chi nhánh', value: 'all' },
                           { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                           { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
-                          { label: 'Chi nhánh Mỹ Luông', value: 'Mỹ Luông' },
+                          { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
+                          { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
                         ]}
                       />
                     ) : (
@@ -580,16 +548,8 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                       Tải File Mẫu Excel
                     </Button>
 
-                    <Upload
-                      beforeUpload={handleFileSelect}
-                      showUploadList={false}
-                      accept=".xlsx, .xls"
-                    >
-                      <Button
-                        type="primary"
-                        style={{ backgroundColor: '#13c2c2', borderColor: '#13c2c2' }}
-                        icon={<FileExcelOutlined />}
-                      >
+                    <Upload beforeUpload={handleFileSelect} showUploadList={false} accept=".xlsx, .xls">
+                      <Button type="primary" style={{ backgroundColor: '#13c2c2', borderColor: '#13c2c2' }} icon={<FileExcelOutlined />}>
                         Nhập Hàng Bằng File Excel
                       </Button>
                     </Upload>
@@ -634,7 +594,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                       dataIndex: 'branch',
                       key: 'branch',
                       render: (b) => <Tag color="blue" style={{ fontWeight: 600 }}>{b}</Tag>,
-                      width: 130,
+                      width: 140,
                     },
                     {
                       title: 'HÃNG XE',
@@ -799,7 +759,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         ]}
       />
 
-      {/* MODAL SỬA SỐ LƯỢNG TỒN KHO */}
+      {/* Modal sửa số lượng */}
       <Modal
         title={`Chỉnh Sửa Số Lượng: ${editingItem?.brand} ${editingItem?.model} (${editingItem?.branch})`}
         open={isEditModalOpen}
@@ -821,7 +781,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         </Form>
       </Modal>
 
-      {/* MODAL XÁC NHẬN NHẬP TỪ EXCEL */}
+      {/* Modal Preview Excel */}
       <Modal
         title={
           <Space>
@@ -835,12 +795,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         width={800}
         destroyOnClose
       >
-        <div style={{ marginBottom: 12 }}>
-          <Text type="secondary">
-            Vui lòng kiểm tra kỹ danh sách xe đọc được từ file Excel trước khi tiến hành cập nhật vào cơ sở dữ liệu:
-          </Text>
-        </div>
-
         <Table<ExcelImportRow>
           dataSource={excelPreviewData}
           rowKey={(r, index) => `${r.branch}_${r.model}_${index}`}
@@ -848,54 +802,24 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
           size="small"
           bordered
           columns={[
-            {
-              title: 'Chi Nhánh',
-              dataIndex: 'branch',
-              render: (b) => <Tag color="blue">{b}</Tag>,
-            },
-            {
-              title: 'Hãng Xe',
-              dataIndex: 'brand',
-              render: (b) => <strong>{b}</strong>,
-            },
-            {
-              title: 'Model',
-              dataIndex: 'model',
-              render: (m) => <strong>{m}</strong>,
-            },
-            {
-              title: 'Màu Sắc',
-              dataIndex: 'color',
-              render: (c) => <Tag color="cyan">{c}</Tag>,
-            },
-            {
-              title: 'Số Lượng',
-              dataIndex: 'quantity',
-              align: 'center',
-              render: (q) => <Tag color="green" style={{ fontWeight: 700 }}>+{q} xe</Tag>,
-            },
-            {
-              title: 'Ghi Chú',
-              dataIndex: 'note',
-            },
+            { title: 'Chi Nhánh', dataIndex: 'branch', render: (b) => <Tag color="blue">{b}</Tag> },
+            { title: 'Hãng Xe', dataIndex: 'brand', render: (b) => <strong>{b}</strong> },
+            { title: 'Model', dataIndex: 'model', render: (m) => <strong>{m}</strong> },
+            { title: 'Màu Sắc', dataIndex: 'color', render: (c) => <Tag color="cyan">{c}</Tag> },
+            { title: 'Số Lượng', dataIndex: 'quantity', align: 'center', render: (q) => <Tag color="green" style={{ fontWeight: 700 }}>+{q} xe</Tag> },
+            { title: 'Ghi Chú', dataIndex: 'note' },
           ]}
         />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <Button onClick={() => setIsExcelModalOpen(false)}>Hủy</Button>
-          <Button
-            type="primary"
-            icon={<UploadOutlined />}
-            loading={submitting}
-            onClick={handleConfirmImportExcel}
-            style={{ backgroundColor: '#13c2c2', borderColor: '#13c2c2' }}
-          >
+          <Button type="primary" icon={<UploadOutlined />} loading={submitting} onClick={handleConfirmImportExcel} style={{ backgroundColor: '#13c2c2', borderColor: '#13c2c2' }}>
             Lưu Vào Hệ Thống Tồn Kho
           </Button>
         </div>
       </Modal>
 
-      {/* MODAL NHẬP THỦ CÔNG */}
+      {/* Modal Nhập Thủ Công */}
       <Modal
         title={
           <Space>
@@ -915,7 +839,8 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
               options={[
                 { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                 { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
-                { label: 'Chi nhánh Mỹ Luông', value: 'Mỹ Luông' },
+                { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
+                { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
               ]}
             />
           </Form.Item>
@@ -959,7 +884,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         </Form>
       </Modal>
 
-      {/* MODAL LUÂN CHUYỂN */}
+      {/* Modal Luân Chuyển */}
       <Modal
         title={
           <Space>
@@ -981,7 +906,8 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                   options={[
                     { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                     { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
-                    { label: 'Chi nhánh Mỹ Luông', value: 'Mỹ Luông' },
+                    { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
+                    { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
                   ]}
                 />
               </Form.Item>
@@ -992,7 +918,8 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                   options={[
                     { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                     { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
-                    { label: 'Chi nhánh Mỹ Luông', value: 'Mỹ Luông' },
+                    { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
+                    { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
                   ]}
                 />
               </Form.Item>

@@ -11,8 +11,20 @@ interface SalesAnalyticsProps {
   parseDateDetails: (data: any) => { dayjsObj: Dayjs | null; [key: string]: any };
 }
 
+// Hàm chuẩn hoá tên 4 chi nhánh
+const normalizeBranchName = (rawBranch?: string): string => {
+  if (!rawBranch) return 'Chợ Mới';
+  const str = rawBranch.trim().toLowerCase();
+  if (str.includes('lấp vò') || str.includes('lap vo')) return 'Lấp Vò';
+  if (str.includes('chợ mới') || str.includes('cho moi')) return 'Chợ Mới';
+  if (str.includes('mỹ luông - cn 3') || str.includes('mỹ luông 3') || str.includes('cn 3') || str.includes('cn3')) return 'Mỹ Luông 3';
+  if (str.includes('mỹ luông - cn 4') || str.includes('mỹ luông 4') || str.includes('cn 4') || str.includes('cn4')) return 'Mỹ Luông 4';
+  if (str.includes('mỹ luông') || str.includes('my luong')) return 'Mỹ Luông 3';
+  return rawBranch.trim();
+};
+
 export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: SalesAnalyticsProps) => {
-  const [reportFilterType, setReportFilterType] = useState<'day' | 'month'>('month');
+  const [reportFilterType, setReportFilterType] = useState<'day' | 'month'>('day');
   const [reportDate, setReportDate] = useState<Dayjs>(dayjs());
   const [reportBranch, setReportBranch] = useState<string>('all');
   const [reportBrand, setReportBrand] = useState<string>('all');
@@ -20,6 +32,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
   const analytics = useMemo(() => {
     let filtered = [...customers];
 
+    // Lọc theo ngày / tháng
     filtered = filtered.filter((item) => {
       const { dayjsObj } = parseDateDetails(item);
       if (!dayjsObj || !dayjsObj.isValid()) return false;
@@ -28,10 +41,12 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
         : dayjsObj.format('YYYY-MM') === reportDate.format('YYYY-MM');
     });
 
+    // Lọc theo chi nhánh chuẩn
     if (reportBranch !== 'all') {
-      filtered = filtered.filter((item) => (item.branchName || item.chi_nhanh || '').trim() === reportBranch);
+      filtered = filtered.filter((item) => normalizeBranchName(item.branchName || item.chi_nhanh) === reportBranch);
     }
 
+    // Lọc theo hãng
     if (reportBrand !== 'all') {
       filtered = filtered.filter((item) => {
         const brand = (item.brand || (item.vehicleName || '').split(' ')[0] || '').trim();
@@ -41,16 +56,17 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
 
     const totalCount = filtered.length;
     const totalRevenue = filtered.reduce((sum, item) => {
-      const val = Number(item.price || item.gia_xe || 0);
+      const val = Number(String(item.price || item.gia_xe || 0).replace(/[^0-9]/g, ''));
       return sum + (isNaN(val) ? 0 : val);
     }, 0);
 
+    // Khởi tạo 4 chi nhánh
     const branchMap = new Map<string, { count: number; revenue: number }>();
-    ['Chợ Mới', 'Lấp Vò', 'Mỹ Luông'].forEach((b) => branchMap.set(b, { count: 0, revenue: 0 }));
+    ['Chợ Mới', 'Lấp Vò', 'Mỹ Luông 3', 'Mỹ Luông 4'].forEach((b) => branchMap.set(b, { count: 0, revenue: 0 }));
 
     filtered.forEach((item) => {
-      const branch = (item.branchName || item.chi_nhanh || 'Khác').trim();
-      const val = Number(item.price || item.gia_xe || 0);
+      const branch = normalizeBranchName(item.branchName || item.chi_nhanh);
+      const val = Number(String(item.price || item.gia_xe || 0).replace(/[^0-9]/g, ''));
       const safeVal = isNaN(val) ? 0 : val;
       const curr = branchMap.get(branch) || { count: 0, revenue: 0 };
       branchMap.set(branch, { count: curr.count + 1, revenue: curr.revenue + safeVal });
@@ -63,13 +79,14 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
       percentage: totalCount > 0 ? Math.round((stat.count / totalCount) * 100) : 0,
     }));
 
+    // Thống kê theo Hãng & Model
     const modelMap = new Map<string, { brand: string; model: string; branch: string; count: number; revenue: number }>();
     filtered.forEach((item) => {
       const parts = (item.vehicleName || '').split(' ');
       const brand = (item.brand || parts[0] || 'Khác').trim();
       const model = (item.model || parts.slice(1).join(' ') || item.vehicleName || 'Chưa rõ model').trim();
-      const branch = (item.branchName || item.chi_nhanh || 'Chợ Mới').trim();
-      const val = Number(item.price || item.gia_xe || 0);
+      const branch = normalizeBranchName(item.branchName || item.chi_nhanh);
+      const val = Number(String(item.price || item.gia_xe || 0).replace(/[^0-9]/g, ''));
       const safeVal = isNaN(val) ? 0 : val;
 
       const key = `${brand}__${model}__${branch}`;
@@ -116,7 +133,8 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
                 { label: 'Tất cả chi nhánh', value: 'all' },
                 { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                 { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
-                { label: 'Chi nhánh Mỹ Luông', value: 'Mỹ Luông' },
+                { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
+                { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
               ]}
             />
           </Col>
