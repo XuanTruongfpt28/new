@@ -96,22 +96,14 @@ const DEFAULT_FIXED_ACCOUNTS: SystemAccount[] = [
   { username: 'admin', password: '123456', fullName: 'Ban Quản Trị (Admin)', branch: 'Chợ Mới', role: 'admin' },
   { username: 'chomoi', password: '123456', fullName: 'Chi Nhánh Chợ Mới', branch: 'Chợ Mới', role: 'staff' },
   { username: 'lapvo', password: '123456', fullName: 'Chi Nhánh Lấp Vò', branch: 'Lấp Vò', role: 'staff' },
-  { username: 'myluong', password: '123456', fullName: 'Chi Nhánh Mỹ Luông', branch: 'Mỹ Luông', role: 'staff' },
+  { username: 'myluong3', password: '123456', fullName: 'Chi Nhánh Mỹ Luông 3', branch: 'Mỹ Luông 3', role: 'staff' },
+  { username: 'myluong4', password: '123456', fullName: 'Chi Nhánh Mỹ Luông 4', branch: 'Mỹ Luông 4', role: 'staff' },
 ];
 
-// Hàm quét và gom toàn bộ các cột hãng/model phân nhánh mới từ Google Sheets
 export const extractVehicleInfo = (item: Customer) => {
   if (item.vehicleName && item.vehicleName.trim() && item.vehicleName.trim() !== '---') {
     return item.vehicleName.trim();
   }
-
-  const directCombine = [item.brand, item.model].filter(Boolean).join(' ').trim();
-  if (directCombine && directCombine !== '---' && directCombine.length > 1) {
-    return directCombine;
-  }
-
-  let foundBrand = '';
-  let foundModel = '';
 
   const excludedKeys = [
     'id', 'fullname', 'ho_ten', 'phone', 'dien_thoai', 'address', 'dia_chi',
@@ -120,39 +112,29 @@ export const extractVehicleInfo = (item: Customer) => {
     'formtimestamp', 'timestamp', 'ngay_mua', 'created_at', 'createdat', 'dấu thời gian'
   ];
 
+  const foundText: string[] = [];
+
   Object.keys(item).forEach((key) => {
     const lowerKey = key.toLowerCase().trim();
-    const rawVal = item[key];
+    if (excludedKeys.some((ex) => lowerKey.includes(ex))) return;
 
-    if (!rawVal || typeof rawVal !== 'string') return;
-    const val = rawVal.trim();
-    if (!val || val === '---' || val === 'SUCCESS') return;
-
-    if (excludedKeys.some((k) => lowerKey.includes(k))) return;
-
-    if (lowerKey === 'chọn hãng' || lowerKey === 'hãng' || lowerKey.startsWith('hãng [')) {
-      foundBrand = val;
-      return;
-    }
-
-    if (
-      lowerKey.includes('mẫu xe') ||
-      lowerKey.includes('model') ||
-      lowerKey.startsWith('cột ') ||
-      lowerKey.startsWith('cot ')
-    ) {
-      foundModel = val;
+    const val = item[key];
+    if (typeof val === 'string') {
+      const clean = val.trim();
+      if (
+        clean &&
+        clean !== '---' &&
+        clean !== 'SUCCESS' &&
+        !clean.startsWith('http') &&
+        isNaN(Number(clean)) &&
+        !foundText.includes(clean)
+      ) {
+        foundText.push(clean);
+      }
     }
   });
 
-  if (foundBrand || foundModel) {
-    if (foundModel.toLowerCase().startsWith(foundBrand.toLowerCase())) {
-      return foundModel;
-    }
-    return [foundBrand, foundModel].filter(Boolean).join(' ').trim();
-  }
-
-  return '---';
+  return foundText.length > 0 ? foundText.join(' ') : '---';
 };
 
 export const parseDateDetails = (customerData: any) => {
@@ -241,19 +223,21 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
   const giaXe = formatMoney(customer.price || customer.gia_xe);
   const tongThanhToan = formatMoney(customer.price || customer.gia_xe);
 
-  const isLapVo = selectedBranch === 'Lấp Vò';
+  let headerAddress = 'Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang';
+  let sellerTitle = 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:';
+  let bankAccount = 'Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK- 1867676868';
 
-  const headerAddress = isLapVo
-    ? 'Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp'
-    : 'Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang';
-
-  const sellerTitle = isLapVo
-    ? 'I. Bên A ( Bên bán xe):  Công ty TNHH XE ĐIỆN THANH TƯƠI'
-    : 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CHỢ MỚI:';
-
-  const bankAccount = isLapVo
-    ? 'Tài khoản: Công ty TNHH Xe điện Thanh Tươi - MBBANK- 6167676868'
-    : 'Tài khoản: Công ty TNHH Xe điện Thanh Tươi Chợ Mới - MBBANK- 1867676868';
+  if (selectedBranch === 'Lấp Vò') {
+    headerAddress = 'Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp';
+    sellerTitle = 'I. Bên A ( Bên bán xe):  Công ty TNHH XE ĐIỆN THANH TƯƠI';
+    bankAccount = 'Tài khoản: Công ty TNHH Xe điện Thanh Tươi - MBBANK- 6167676868';
+  } else if (selectedBranch === 'Mỹ Luông 3') {
+    headerAddress = 'Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang';
+    sellerTitle = 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CN3';
+  } else if (selectedBranch === 'Mỹ Luông 4') {
+    headerAddress = '293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang';
+    sellerTitle = 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CN4';
+  }
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -381,7 +365,6 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
                 <div>* Giá bán xe chưa bao gồm phí trước bạ, phí bấm biển số và phí dịch vụ ( đối với xe máy điện)</div>
                 <div>* Dịch vụ bấm biển số (không bao bảo hiểm và phí kẹp biển số):</div>
                 <div class="bold">* Quà tặng: NÓN BẢO HIỂM</div><br /><br />
-                
                 <div class="bold italic" style="margin-top: 2px;">*ƯU ĐÃI ĐẶC BIỆT: Miễn công cứu hộ tận nhà 12 tháng khi xe KÉO GA KHÔNG CHẠY (15km)</div>
               </td>
               <td>
@@ -621,11 +604,13 @@ export default function App() {
 
   const handleOpenPrintModal = (record: Customer) => {
     setSelectedPrintCustomer(record);
-    const currentBranch = (record.branchName || record.chi_nhanh || '').trim();
-    if (currentBranch.includes('Lấp Vò')) {
+    const currentBranch = (record.branchName || record.chi_nhanh || '').trim().toLowerCase();
+    if (currentBranch.includes('lấp vò')) {
       setSelectedBranchToPrint('Lấp Vò');
-    } else if (currentBranch.includes('Mỹ Luông')) {
-      setSelectedBranchToPrint('Mỹ Luông');
+    } else if (currentBranch.includes('cn 4') || currentBranch.includes('4')) {
+      setSelectedBranchToPrint('Mỹ Luông 4');
+    } else if (currentBranch.includes('cn 3') || currentBranch.includes('3') || currentBranch.includes('mỹ luông')) {
+      setSelectedBranchToPrint('Mỹ Luông 3');
     } else {
       setSelectedBranchToPrint('Chợ Mới');
     }
@@ -683,27 +668,22 @@ export default function App() {
         await axios.post(`${BASE_API_URL}/customers`, values);
         message.success('Thêm mới thành công!');
 
-        // Tự động trừ tồn kho
+        // TỰ ĐỘNG CHUYỂN TRẠNG THÁI SỐ KHUNG SANG "ĐÃ BÁN"
+        const frameNum = (values.frameNumber || '').trim();
         const branch = values.branchName || currentUser?.branch || 'Chợ Mới';
-        const brand = values.brand || '';
-        const model = values.model || '';
-        const color = values.color || '';
 
-        if (brand && model && color) {
+        if (frameNum) {
           const { data: invItem } = await supabase
             .from('Inventory')
             .select('*')
-            .eq('branch', branch)
-            .ilike('brand', brand.trim())
-            .ilike('model', model.trim())
-            .ilike('color', color.trim())
+            .eq('frame_number', frameNum)
             .maybeSingle();
 
-          if (invItem && Number(invItem.quantity) > 0) {
+          if (invItem) {
             await supabase
               .from('Inventory')
               .update({
-                quantity: Number(invItem.quantity) - 1,
+                status: 'sold',
                 updated_at: new Date().toISOString(),
               })
               .eq('id', invItem.id);
@@ -711,15 +691,16 @@ export default function App() {
             await supabase.from('InventoryLog').insert([
               {
                 type: 'sale',
-                brand: brand.trim(),
-                model: model.trim(),
-                color: color.trim(),
+                brand: invItem.brand,
+                model: invItem.model,
+                color: invItem.color,
                 quantity: 1,
                 from_branch: branch,
-                note: `Bán cho khách: ${values.fullName || 'Khách lẻ'}`,
+                note: `Bán xe số khung: ${frameNum} cho khách ${values.fullName || 'Khách lẻ'}`,
                 created_by: currentUser?.fullName,
               },
             ]);
+            message.info(`Đã cập nhật xe số khung [${frameNum}] sang trạng thái ĐÃ BÁN.`);
           }
         }
       }
@@ -1121,7 +1102,7 @@ export default function App() {
             >
               <Input
                 prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
-                placeholder="Tài khoản (admin / lapvo / myluong / chomoi)"
+                placeholder="Tài khoản (admin / chomoi / lapvo / myluong3 / myluong4)"
                 style={{ borderRadius: 8 }}
               />
             </Form.Item>
@@ -1167,11 +1148,12 @@ export default function App() {
               color: '#595959',
             }}
           >
-            <div><strong>Danh sách 4 tài khoản hệ thống:</strong></div>
-            <div>• Quản trị viên: <Text code>admin</Text></div>
+            <div><strong>Danh sách tài khoản hệ thống:</strong></div>
+            <div>• Ban Quản Trị: <Text code>admin</Text></div>
             <div>• Chi nhánh Chợ Mới: <Text code>chomoi</Text></div>
             <div>• Chi nhánh Lấp Vò: <Text code>lapvo</Text></div>
-            <div>• Chi nhánh Mỹ Luông: <Text code>myluong</Text></div>
+            <div>• Chi nhánh Mỹ Luông 3: <Text code>myluong3</Text></div>
+            <div>• Chi nhánh Mỹ Luông 4: <Text code>myluong4</Text></div>
           </div>
         </Card>
       </div>
@@ -1330,18 +1312,18 @@ export default function App() {
         />
       </Card>
 
-      {/* MODAL ADMIN ĐỔI MẬT KHẨU */}
+      {/* Modal Admin Đổi Mật Khẩu */}
       <Modal
         title={
           <Space>
             <SafetyCertificateOutlined style={{ color: '#fa8c16' }} />
-            <span>Quản Lý Mật Khẩu 4 Tài Khoản (Đồng Bộ Cloud)</span>
+            <span>Quản Lý Mật Khẩu 5 Tài Khoản (Đồng Bộ Cloud)</span>
           </Space>
         }
         open={isPasswordModalOpen}
         onCancel={() => setIsPasswordModalOpen(false)}
         footer={null}
-        width={700}
+        width={750}
         destroyOnClose
       >
         <div style={{ marginBottom: 16 }}>
@@ -1424,7 +1406,7 @@ export default function App() {
         )}
       </Modal>
 
-      {/* MODAL CHỌN CHI NHÁNH IN HỢP ĐỒNG */}
+      {/* Modal Chọn Chi Nhánh In Hợp Đồng */}
       <Modal
         title={
           <Space>
@@ -1455,12 +1437,13 @@ export default function App() {
           >
             <Radio value="Chợ Mới"><strong>Chi nhánh Chợ Mới</strong></Radio>
             <Radio value="Lấp Vò"><strong>Chi nhánh Lấp Vò</strong></Radio>
-            <Radio value="Mỹ Luông"><strong>Chi nhánh Mỹ Luông</strong></Radio>
+            <Radio value="Mỹ Luông 3"><strong>Chi nhánh Mỹ Luông 3</strong></Radio>
+            <Radio value="Mỹ Luông 4"><strong>Chi nhánh Mỹ Luông 4</strong></Radio>
           </Radio.Group>
         </div>
       </Modal>
 
-      {/* MODAL THÊM / SỬA KHÁCH HÀNG */}
+      {/* Modal Thêm / Sửa */}
       <Modal
         title={editingCustomer ? `Sửa thông tin #${editingCustomer.id}` : 'Thêm Mới Khách Hàng'}
         open={isModalOpen}
@@ -1506,7 +1489,14 @@ export default function App() {
             <Input />
           </Form.Item>
           <Form.Item name="branchName" label="Chi nhánh">
-            <Input />
+            <Select
+              options={[
+                { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
+                { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
+                { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
+                { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
+              ]}
+            />
           </Form.Item>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
             <Button onClick={() => setIsModalOpen(false)}>Hủy</Button>
@@ -1517,7 +1507,7 @@ export default function App() {
         </Form>
       </Modal>
 
-      {/* MODAL BỘ LỌC XUẤT EXCEL */}
+      {/* Modal Xuất Excel */}
       <Modal
         title={
           <Space>
