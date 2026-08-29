@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
 import {
   Card,
   Table,
@@ -42,6 +43,7 @@ import { supabase } from '../supabase';
 import type { SystemAccount, Customer } from '../App';
 
 const { Text } = Typography;
+const BASE_API_URL = import.meta.env.VITE_API_URL || 'https://xedienthanhtuoi.vercel.app/api';
 
 export interface VehicleStockItem {
   id?: number;
@@ -84,6 +86,12 @@ interface InventoryManagementProps {
   currentUser: SystemAccount;
   customers?: Customer[];
 }
+
+// Hàm chuẩn hóa chuỗi số khung (bỏ ký tự lạ, chuyển chữ hoa)
+const cleanFrameStr = (str?: string): string => {
+  if (!str) return '';
+  return str.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().trim();
+};
 
 export const InventoryManagement = ({ currentUser, customers = [] }: InventoryManagementProps) => {
   const [vehicleList, setVehicleList] = useState<VehicleStockItem[]>([]);
@@ -137,73 +145,112 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     fetchData();
   }, []);
 
-  // 🔄 HÀM TỰ ĐỘNG ĐỐI CHIẾU SỐ KHUNG VỚI ĐƠN KHÁCH ĐÃ MUA ĐỂ ĐỔI SANG "ĐÃ BÁN"
+  // 🔄 HÀM ĐỒNG BỘ TOÀN DIỆN VỚI DANH SÁCH ĐƠN BÁN
   const handleSyncSoldStatus = async (showSuccessMsg = true) => {
-    if (!customers || customers.length === 0) return;
     setSyncing(true);
-
-    // Thu thập tất cả các số khung hợp lệ từ danh sách khách hàng đã mua
-    const soldFrameMap = new Map<string, Customer>();
-    customers.forEach((c) => {
-      const fn = (c.frameNumber || c.so_khung || '').trim().toUpperCase();
-      if (fn && fn !== '---' && fn.length >= 3) {
-        soldFrameMap.set(fn, c);
-      }
-    });
+    const hide = showSuccessMsg ? message.loading('Đang quét và so khớp tất cả số khung đã bán...', 0) : () => {};
 
     try {
-      const { data: currentStock, error } = await supabase
+      // 1. Lấy danh sách khách hàng mới nhất từ API
+      let allSales: Customer[] = customers;
+      if (!allSales || allSales.length === 0) {
+        const res = await axios.get(`${BASE_API_URL}/customers?limit=100000&pageSize=100000`);
+        if (res.data && res.data.success && Array.isArray(res.data.data)) {
+          allSales = res.data.data;
+        } else if (Array.isArray(res.data)) {
+          allSales = res.data;
+        }
+      }
+
+      if (!allSales || allSales.length === 0) {
+        hide();
+        setSyncing(false);
+        if (showSuccessMsg) message.warning('Chưa có dữ liệu đơn hàng nào để so khớp!');
+        return;
+      }
+
+      // 2. Thu thập danh sách số khung đã bán
+      const soldFrameList: { cleanFn: string; rawFn: string; customer: Customer }[] = [];
+      allSales.forEach((c) => {
+        const raw = (c.frameNumber || c.so_khung || '').trim();
+        const clean = cleanFrameStr(raw);
+        if (clean && clean !== '---' && clean.length >= 3) {
+          soldFrameList.push({ cleanFn: clean, rawFn: raw, customer: c });
+        }
+      });
+
+      // 3. Lấy các xe hiện tại đang ghi là "in_stock"
+      const { data: stockItems, error: stockErr } = await supabase
         .from('Inventory')
         .select('*')
         .eq('status', 'in_stock');
 
-      if (error || !currentStock) {
+      if (stockErr || !stockItems) {
+        hide();
         setSyncing(false);
+        if (showSuccessMsg) message.error('Lỗi truy vấn kho xe!');
         return;
       }
 
-      const itemsToUpdate = currentStock.filter((item) => {
-        const itemFn = (item.frame_number || '').trim().toUpperCase();
-        return soldFrameMap.has(itemFn);
+      // 4. So khớp thông minh (Khớp chính xác HOẶC khớp chuỗi con / đuôi số khung >= 4 ký tự)
+      const matchedToSold: { item: VehicleStockItem; customer: Customer }[] = [];
+
+      stockItems.forEach((inv) => {
+        const invClean = cleanFrameStr(inv.frame_number);
+        if (!invClean) return;
+
+        const found = soldFrameList.find((s) => {
+          if (invClean === s.cleanFn) return true;
+          // Khớp đuôi hoặc chuỗi con nếu độ dài từ 4 ký tự trở lên
+          if (invClean.length >= 4 && s.cleanFn.length >= 4) {
+            return invClean.endsWith(s.cleanFn) || s.cleanFn.endsWith(invClean) || invClean.includes(s.cleanFn) || s.cleanFn.includes(invClean);
+          }
+          return false;
+        });
+
+        if (found) {
+          matchedToSold.push({ item: inv, customer: found.customer });
+        }
       });
 
-      if (itemsToUpdate.length > 0) {
-        for (const item of itemsToUpdate) {
-          const itemFn = item.frame_number.trim().toUpperCase();
-          const customerInfo = soldFrameMap.get(itemFn);
-
+      // 5. Cập nhật trạng thái 'sold' lên Supabase
+      if (matchedToSold.length > 0) {
+        for (const m of matchedToSold) {
           await supabase
             .from('Inventory')
             .update({
               status: 'sold',
               updated_at: new Date().toISOString(),
             })
-            .eq('id', item.id);
+            .eq('id', m.item.id);
 
           await supabase.from('InventoryLog').insert([
             {
               type: 'sale',
-              brand: item.brand,
-              model: item.model,
-              color: item.color,
+              brand: m.item.brand,
+              model: m.item.model,
+              color: m.item.color,
               quantity: 1,
-              from_branch: item.branch,
-              note: `Tự động cập nhật bán xe SK: ${item.frame_number} cho khách ${customerInfo?.fullName || customerInfo?.ho_ten || 'Khách mua'}`,
+              from_branch: m.item.branch,
+              note: `Tự động đồng bộ bán xe SK: ${m.item.frame_number} cho khách ${m.customer.fullName || m.customer.ho_ten || 'Khách mua'}`,
               created_by: 'Hệ thống tự động',
             },
           ]);
         }
 
+        hide();
         if (showSuccessMsg) {
-          message.success(`Đã tự động cập nhật ${itemsToUpdate.length} xe sang trạng thái ĐÃ BÁN!`);
+          message.success(`Đã cập nhật thành công ${matchedToSold.length} xe sang trạng thái ĐÃ BÁN!`);
         }
         await fetchData();
       } else {
+        hide();
         if (showSuccessMsg) {
-          message.info('Tất cả xe đã bán đều đã được đồng bộ chuẩn xác!');
+          message.info('Tất cả xe đã bán đều đã khớp chuẩn xác với kho!');
         }
       }
     } catch (err: any) {
+      hide();
       console.error(err);
       if (showSuccessMsg) message.error('Lỗi khi đồng bộ: ' + err.message);
     } finally {
@@ -211,12 +258,10 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     }
   };
 
-  // Tự động quét đối chiếu ngay khi có dữ liệu khách hàng
+  // Tự động kiểm tra khi load trang
   useEffect(() => {
-    if (customers.length > 0) {
-      handleSyncSoldStatus(false);
-    }
-  }, [customers]);
+    handleSyncSoldStatus(false);
+  }, []);
 
   const selectedVehicles = useMemo(() => {
     return vehicleList.filter((v) => v.id && selectedRowKeys.includes(v.id));
@@ -512,7 +557,8 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
       message.success(`Đã nạp thành công ${excelPreviewData.length} xe theo số khung vào kho!`);
       setIsExcelModalOpen(false);
       setExcelPreviewData([]);
-      fetchData();
+      await fetchData();
+      handleSyncSoldStatus(false);
     } catch (err: any) {
       hide();
       message.error('Lỗi khi lưu dữ liệu: ' + err.message);
@@ -567,7 +613,8 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
       message.success(`Đã thêm xe ${brand} ${model} (SK: ${frame_number}) vào ${branch}!`);
       setIsImportModalOpen(false);
       importForm.resetFields();
-      fetchData();
+      await fetchData();
+      handleSyncSoldStatus(false);
     } catch (err: any) {
       message.error('Lỗi khi thêm xe: ' + err.message);
     } finally {
@@ -904,7 +951,7 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
                       render: (st, record) => (
                         <Popconfirm
                           title="Đổi trạng thái xe"
-                          description={`Chuyển xe [${record.frame_number}] sang trạng thái: ${st === 'in_stock' ? 'ĐÃ BÁN' : 'TRONG KHO'}?`}
+                          description={`Chuyển xe [${record.frame_number}] sang: ${st === 'in_stock' ? 'ĐÃ BÁN' : 'TRONG KHO'}?`}
                           onConfirm={() => handleToggleStatus(record)}
                           okText="Đổi"
                           cancelText="Hủy"
