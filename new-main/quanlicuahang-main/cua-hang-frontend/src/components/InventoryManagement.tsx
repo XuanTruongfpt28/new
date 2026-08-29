@@ -87,7 +87,6 @@ interface InventoryManagementProps {
   customers?: Customer[];
 }
 
-// Hàm chuẩn hóa chuỗi số khung (bỏ ký tự lạ, chuyển chữ hoa)
 const cleanFrameStr = (str?: string): string => {
   if (!str) return '';
   return str.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().trim();
@@ -117,7 +116,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
   const [transferForm] = Form.useForm();
   const [batchTransferForm] = Form.useForm();
 
-  // Tải danh sách xe từ Supabase
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -145,13 +143,12 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     fetchData();
   }, []);
 
-  // 🔄 HÀM ĐỒNG BỘ TOÀN DIỆN VỚI DANH SÁCH ĐƠN BÁN
+  // 🎯 SO KHỚP CHÍNH XÁC 100% SỐ KHUNG (TRÁNH KHỚP NHẦM ĐUÔI SỐ)
   const handleSyncSoldStatus = async (showSuccessMsg = true) => {
     setSyncing(true);
-    const hide = showSuccessMsg ? message.loading('Đang quét và so khớp tất cả số khung đã bán...', 0) : () => {};
+    const hide = showSuccessMsg ? message.loading('Đang quét chính xác số khung các đơn bán...', 0) : () => {};
 
     try {
-      // 1. Lấy danh sách khách hàng mới nhất từ API
       let allSales: Customer[] = customers;
       if (!allSales || allSales.length === 0) {
         const res = await axios.get(`${BASE_API_URL}/customers?limit=100000&pageSize=100000`);
@@ -165,21 +162,20 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
       if (!allSales || allSales.length === 0) {
         hide();
         setSyncing(false);
-        if (showSuccessMsg) message.warning('Chưa có dữ liệu đơn hàng nào để so khớp!');
+        if (showSuccessMsg) message.warning('Chưa có dữ liệu đơn hàng nào!');
         return;
       }
 
-      // 2. Thu thập danh sách số khung đã bán
-      const soldFrameList: { cleanFn: string; rawFn: string; customer: Customer }[] = [];
+      // Tập hợp các số khung đã bán
+      const soldFrameMap = new Map<string, Customer>();
       allSales.forEach((c) => {
         const raw = (c.frameNumber || c.so_khung || '').trim();
         const clean = cleanFrameStr(raw);
-        if (clean && clean !== '---' && clean.length >= 3) {
-          soldFrameList.push({ cleanFn: clean, rawFn: raw, customer: c });
+        if (clean && clean !== '---' && clean.length >= 5) {
+          soldFrameMap.set(clean, c);
         }
       });
 
-      // 3. Lấy các xe hiện tại đang ghi là "in_stock"
       const { data: stockItems, error: stockErr } = await supabase
         .from('Inventory')
         .select('*')
@@ -192,28 +188,18 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
         return;
       }
 
-      // 4. So khớp thông minh (Khớp chính xác HOẶC khớp chuỗi con / đuôi số khung >= 4 ký tự)
+      // Chỉ lấy xe có số khung KHỚP CHÍNH XÁC 100%
       const matchedToSold: { item: VehicleStockItem; customer: Customer }[] = [];
 
       stockItems.forEach((inv) => {
         const invClean = cleanFrameStr(inv.frame_number);
         if (!invClean) return;
 
-        const found = soldFrameList.find((s) => {
-          if (invClean === s.cleanFn) return true;
-          // Khớp đuôi hoặc chuỗi con nếu độ dài từ 4 ký tự trở lên
-          if (invClean.length >= 4 && s.cleanFn.length >= 4) {
-            return invClean.endsWith(s.cleanFn) || s.cleanFn.endsWith(invClean) || invClean.includes(s.cleanFn) || s.cleanFn.includes(invClean);
-          }
-          return false;
-        });
-
-        if (found) {
-          matchedToSold.push({ item: inv, customer: found.customer });
+        if (soldFrameMap.has(invClean)) {
+          matchedToSold.push({ item: inv, customer: soldFrameMap.get(invClean)! });
         }
       });
 
-      // 5. Cập nhật trạng thái 'sold' lên Supabase
       if (matchedToSold.length > 0) {
         for (const m of matchedToSold) {
           await supabase
@@ -232,7 +218,7 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
               color: m.item.color,
               quantity: 1,
               from_branch: m.item.branch,
-              note: `Tự động đồng bộ bán xe SK: ${m.item.frame_number} cho khách ${m.customer.fullName || m.customer.ho_ten || 'Khách mua'}`,
+              note: `Đồng bộ chính xác bán xe SK: ${m.item.frame_number} cho khách ${m.customer.fullName || m.customer.ho_ten || 'Khách mua'}`,
               created_by: 'Hệ thống tự động',
             },
           ]);
@@ -240,13 +226,13 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
 
         hide();
         if (showSuccessMsg) {
-          message.success(`Đã cập nhật thành công ${matchedToSold.length} xe sang trạng thái ĐÃ BÁN!`);
+          message.success(`Đã cập nhật chính xác ${matchedToSold.length} xe sang ĐÃ BÁN!`);
         }
         await fetchData();
       } else {
         hide();
         if (showSuccessMsg) {
-          message.info('Tất cả xe đã bán đều đã khớp chuẩn xác với kho!');
+          message.info('Không có xe mới nào khớp với danh sách đơn bán.');
         }
       }
     } catch (err: any) {
@@ -257,11 +243,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
       setSyncing(false);
     }
   };
-
-  // Tự động kiểm tra khi load trang
-  useEffect(() => {
-    handleSyncSoldStatus(false);
-  }, []);
 
   const selectedVehicles = useMemo(() => {
     return vehicleList.filter((v) => v.id && selectedRowKeys.includes(v.id));
@@ -281,14 +262,13 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
 
       if (error) throw error;
 
-      message.success(`Đã chuyển xe [${record.frame_number}] sang: ${newStatus === 'in_stock' ? 'TRONG KHO' : 'ĐÃ BÁN'}`);
+      message.success(`Đã đổi xe [${record.frame_number}] thành: ${newStatus === 'in_stock' ? 'TRONG KHO' : 'ĐÃ BÁN'}`);
       fetchData();
     } catch (err: any) {
       message.error('Lỗi khi đổi trạng thái: ' + err.message);
     }
   };
 
-  // Xóa đơn lẻ 1 xe
   const handleDeleteVehicle = async (item: VehicleStockItem) => {
     try {
       const { error } = await supabase.from('Inventory').delete().eq('id', item.id);
@@ -315,7 +295,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     }
   };
 
-  // Xóa hàng loạt
   const handleBatchDelete = async () => {
     if (selectedRowKeys.length === 0) return;
     setSubmitting(true);
@@ -323,7 +302,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
 
     try {
       const idsToDelete = selectedRowKeys;
-
       const { error } = await supabase.from('Inventory').delete().in('id', idsToDelete);
       if (error) throw error;
 
@@ -343,7 +321,7 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
       }
 
       hide();
-      message.success(`Đã xóa thành công ${idsToDelete.length} xe khỏi cơ sở dữ liệu!`);
+      message.success(`Đã xóa thành công ${idsToDelete.length} xe!`);
       setSelectedRowKeys([]);
       fetchData();
     } catch (err: any) {
@@ -354,7 +332,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     }
   };
 
-  // Luân chuyển hàng loạt
   const handleBatchTransferSubmit = async (values: any) => {
     if (selectedRowKeys.length === 0) return;
     setSubmitting(true);
@@ -403,7 +380,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     }
   };
 
-  // Tải file mẫu Excel
   const handleDownloadSampleExcel = () => {
     const sampleData = [
       {
@@ -451,7 +427,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     XLSX.writeFile(workbook, 'Mau_Nhap_Xe_Theo_So_Khung.xlsx');
   };
 
-  // Đọc file Excel upload
   const handleFileSelect = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -498,7 +473,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     return false;
   };
 
-  // Lưu Excel vào Supabase
   const handleConfirmImportExcel = async () => {
     if (excelPreviewData.length === 0) return;
     setSubmitting(true);
@@ -558,7 +532,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
       setIsExcelModalOpen(false);
       setExcelPreviewData([]);
       await fetchData();
-      handleSyncSoldStatus(false);
     } catch (err: any) {
       hide();
       message.error('Lỗi khi lưu dữ liệu: ' + err.message);
@@ -567,7 +540,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     }
   };
 
-  // Nhập thủ công 1 xe
   const handleImportSubmit = async (values: any) => {
     setSubmitting(true);
     const { branch, brand, model, color, frame_number, battery_number, note } = values;
@@ -614,7 +586,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
       setIsImportModalOpen(false);
       importForm.resetFields();
       await fetchData();
-      handleSyncSoldStatus(false);
     } catch (err: any) {
       message.error('Lỗi khi thêm xe: ' + err.message);
     } finally {
@@ -622,7 +593,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     }
   };
 
-  // Luân chuyển 1 xe
   const handleTransferSubmit = async (values: any) => {
     setSubmitting(true);
     const { frame_number, toBranch, note } = values;
@@ -713,7 +683,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
 
   return (
     <div style={{ paddingTop: 8 }}>
-      {/* THỐNG KÊ TỔNG QUAN */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={8}>
           <Card bordered style={{ borderRadius: 8, backgroundColor: '#e6f7ff', borderColor: '#91caff' }}>
@@ -853,7 +822,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
                   </Space>
                 </div>
 
-                {/* THANH TÁC VỤ HÀNG LOẠT KHI CÓ XE ĐƯỢC TICK CHỌN */}
                 {selectedRowKeys.length > 0 && (
                   <Alert
                     style={{ marginBottom: 16, borderRadius: 8 }}
