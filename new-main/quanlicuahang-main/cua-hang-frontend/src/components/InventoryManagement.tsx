@@ -34,11 +34,12 @@ import {
   DeleteOutlined,
   BarcodeOutlined,
   CheckSquareOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabase';
-import type { SystemAccount } from '../App';
+import type { SystemAccount, Customer } from '../App';
 
 const { Text } = Typography;
 
@@ -81,18 +82,19 @@ interface ExcelVehicleRow {
 
 interface InventoryManagementProps {
   currentUser: SystemAccount;
+  customers?: Customer[];
 }
 
-export const InventoryManagement = ({ currentUser }: InventoryManagementProps) => {
+export const InventoryManagement = ({ currentUser, customers = [] }: InventoryManagementProps) => {
   const [vehicleList, setVehicleList] = useState<VehicleStockItem[]>([]);
   const [logList, setLogList] = useState<InventoryLogItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const [filterBranch, setFilterBranch] = useState<string>(currentUser.role === 'admin' ? 'all' : currentUser.branch);
   const [filterStatus, setFilterStatus] = useState<string>('in_stock');
   const [searchText, setSearchText] = useState('');
 
-  // 🎯 State quản lý các dòng được tick chọn (Selection Keys)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   // Modals
@@ -107,7 +109,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
   const [transferForm] = Form.useForm();
   const [batchTransferForm] = Form.useForm();
 
-  // Tải danh sách xe theo số khung
+  // Tải danh sách xe từ Supabase
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -135,10 +137,111 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     fetchData();
   }, []);
 
-  // Danh sách các đối tượng xe thực tế được tick chọn
+  // 🔄 HÀM TỰ ĐỘNG ĐỐI CHIẾU SỐ KHUNG VỚI ĐƠN KHÁCH ĐÃ MUA ĐỂ ĐỔI SANG "ĐÃ BÁN"
+  const handleSyncSoldStatus = async (showSuccessMsg = true) => {
+    if (!customers || customers.length === 0) return;
+    setSyncing(true);
+
+    // Thu thập tất cả các số khung hợp lệ từ danh sách khách hàng đã mua
+    const soldFrameMap = new Map<string, Customer>();
+    customers.forEach((c) => {
+      const fn = (c.frameNumber || c.so_khung || '').trim().toUpperCase();
+      if (fn && fn !== '---' && fn.length >= 3) {
+        soldFrameMap.set(fn, c);
+      }
+    });
+
+    try {
+      const { data: currentStock, error } = await supabase
+        .from('Inventory')
+        .select('*')
+        .eq('status', 'in_stock');
+
+      if (error || !currentStock) {
+        setSyncing(false);
+        return;
+      }
+
+      const itemsToUpdate = currentStock.filter((item) => {
+        const itemFn = (item.frame_number || '').trim().toUpperCase();
+        return soldFrameMap.has(itemFn);
+      });
+
+      if (itemsToUpdate.length > 0) {
+        for (const item of itemsToUpdate) {
+          const itemFn = item.frame_number.trim().toUpperCase();
+          const customerInfo = soldFrameMap.get(itemFn);
+
+          await supabase
+            .from('Inventory')
+            .update({
+              status: 'sold',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', item.id);
+
+          await supabase.from('InventoryLog').insert([
+            {
+              type: 'sale',
+              brand: item.brand,
+              model: item.model,
+              color: item.color,
+              quantity: 1,
+              from_branch: item.branch,
+              note: `Tự động cập nhật bán xe SK: ${item.frame_number} cho khách ${customerInfo?.fullName || customerInfo?.ho_ten || 'Khách mua'}`,
+              created_by: 'Hệ thống tự động',
+            },
+          ]);
+        }
+
+        if (showSuccessMsg) {
+          message.success(`Đã tự động cập nhật ${itemsToUpdate.length} xe sang trạng thái ĐÃ BÁN!`);
+        }
+        await fetchData();
+      } else {
+        if (showSuccessMsg) {
+          message.info('Tất cả xe đã bán đều đã được đồng bộ chuẩn xác!');
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (showSuccessMsg) message.error('Lỗi khi đồng bộ: ' + err.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Tự động quét đối chiếu ngay khi có dữ liệu khách hàng
+  useEffect(() => {
+    if (customers.length > 0) {
+      handleSyncSoldStatus(false);
+    }
+  }, [customers]);
+
   const selectedVehicles = useMemo(() => {
     return vehicleList.filter((v) => v.id && selectedRowKeys.includes(v.id));
   }, [vehicleList, selectedRowKeys]);
+
+  // Đổi trạng thái trực tiếp của 1 xe
+  const handleToggleStatus = async (record: VehicleStockItem) => {
+    const newStatus = record.status === 'in_stock' ? 'sold' : 'in_stock';
+    try {
+      const { error } = await supabase
+        .from('Inventory')
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', record.id);
+
+      if (error) throw error;
+
+      message.success(`Đã chuyển xe [${record.frame_number}] sang: ${newStatus === 'in_stock' ? 'TRONG KHO' : 'ĐÃ BÁN'}`);
+      fetchData();
+    } catch (err: any) {
+      message.error('Lỗi khi đổi trạng thái: ' + err.message);
+    }
+  };
 
   // Xóa đơn lẻ 1 xe
   const handleDeleteVehicle = async (item: VehicleStockItem) => {
@@ -167,7 +270,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // 🎯 XÓA HÀNG LOẠT NHIỀU XE ĐÃ TICK CHỌN
+  // Xóa hàng loạt
   const handleBatchDelete = async () => {
     if (selectedRowKeys.length === 0) return;
     setSubmitting(true);
@@ -179,7 +282,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
       const { error } = await supabase.from('Inventory').delete().in('id', idsToDelete);
       if (error) throw error;
 
-      // Ghi log xóa
       for (const item of selectedVehicles) {
         await supabase.from('InventoryLog').insert([
           {
@@ -207,7 +309,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // 🎯 LUÂN CHUYỂN HÀNG LOẠT NHIỀU XE ĐÃ TICK CHỌN SANG SHOP KHÁC
+  // Luân chuyển hàng loạt
   const handleBatchTransferSubmit = async (values: any) => {
     if (selectedRowKeys.length === 0) return;
     setSubmitting(true);
@@ -217,9 +319,8 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     try {
       for (const item of selectedVehicles) {
         const fromBranch = item.branch;
-        if (fromBranch === toBranch) continue; // Bỏ qua nếu cùng chi nhánh
+        if (fromBranch === toBranch) continue;
 
-        // Cập nhật vị trí kho mới
         await supabase
           .from('Inventory')
           .update({
@@ -228,7 +329,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
           })
           .eq('id', item.id);
 
-        // Ghi log
         await supabase.from('InventoryLog').insert([
           {
             type: 'transfer',
@@ -258,7 +358,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Tải file mẫu Excel chuẩn
+  // Tải file mẫu Excel
   const handleDownloadSampleExcel = () => {
     const sampleData = [
       {
@@ -306,7 +406,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     XLSX.writeFile(workbook, 'Mau_Nhap_Xe_Theo_So_Khung.xlsx');
   };
 
-  // Đọc file Excel người dùng tải lên
+  // Đọc file Excel upload
   const handleFileSelect = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -353,7 +453,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     return false;
   };
 
-  // Lưu danh sách xe từ Excel vào Supabase
+  // Lưu Excel vào Supabase
   const handleConfirmImportExcel = async () => {
     if (excelPreviewData.length === 0) return;
     setSubmitting(true);
@@ -421,7 +521,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Nhập thủ công 1 chiếc xe theo Số Khung
+  // Nhập thủ công 1 xe
   const handleImportSubmit = async (values: any) => {
     setSubmitting(true);
     const { branch, brand, model, color, frame_number, battery_number, note } = values;
@@ -475,7 +575,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Luân chuyển 1 chiếc xe cụ thể (chọn từ Select đơn lẻ)
+  // Luân chuyển 1 xe
   const handleTransferSubmit = async (values: any) => {
     setSubmitting(true);
     const { frame_number, toBranch, note } = values;
@@ -534,7 +634,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     }
   };
 
-  // Lọc danh sách hiển thị
   const filteredVehicles = useMemo(() => {
     return vehicleList.filter((item) => {
       const matchBranch = filterBranch === 'all' ? true : item.branch === filterBranch;
@@ -551,7 +650,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     });
   }, [vehicleList, filterBranch, filterStatus, searchText]);
 
-  // Thống kê
   const inStockCount = vehicleList.filter((v) => v.status === 'in_stock').length;
   const soldCount = vehicleList.filter((v) => v.status === 'sold').length;
 
@@ -559,7 +657,6 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
     return vehicleList.filter((v) => v.status === 'in_stock');
   }, [vehicleList]);
 
-  // 🎯 Cấu hình RowSelection cho Ant Design Table
   const rowSelection = {
     selectedRowKeys,
     onChange: (newSelectedRowKeys: React.Key[]) => {
@@ -660,6 +757,15 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                     <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>
                       Tải lại
                     </Button>
+                    <Button
+                      type="primary"
+                      icon={<SyncOutlined spin={syncing} />}
+                      style={{ backgroundColor: '#1890ff' }}
+                      onClick={() => handleSyncSoldStatus(true)}
+                      loading={syncing}
+                    >
+                      Đồng Bộ Đơn Đã Bán
+                    </Button>
                   </Space>
 
                   <Space wrap>
@@ -700,7 +806,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                   </Space>
                 </div>
 
-                {/* 🎯 THANH TÁC VỤ HÀNG LOẠT KHI CÓ XE ĐƯỢC TICK CHỌN */}
+                {/* THANH TÁC VỤ HÀNG LOẠT KHI CÓ XE ĐƯỢC TICK CHỌN */}
                 {selectedRowKeys.length > 0 && (
                   <Alert
                     style={{ marginBottom: 16, borderRadius: 8 }}
@@ -795,13 +901,26 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
                       dataIndex: 'status',
                       key: 'status',
                       align: 'center',
-                      render: (st) =>
-                        st === 'in_stock' ? (
-                          <Tag color="green" style={{ fontWeight: 600 }}>Trong kho</Tag>
-                        ) : (
-                          <Tag color="default">Đã bán</Tag>
-                        ),
-                      width: 120,
+                      render: (st, record) => (
+                        <Popconfirm
+                          title="Đổi trạng thái xe"
+                          description={`Chuyển xe [${record.frame_number}] sang trạng thái: ${st === 'in_stock' ? 'ĐÃ BÁN' : 'TRONG KHO'}?`}
+                          onConfirm={() => handleToggleStatus(record)}
+                          okText="Đổi"
+                          cancelText="Hủy"
+                        >
+                          {st === 'in_stock' ? (
+                            <Tag color="green" style={{ fontWeight: 600, cursor: 'pointer' }}>
+                              Trong kho (Bấm để đổi)
+                            </Tag>
+                          ) : (
+                            <Tag color="default" style={{ cursor: 'pointer' }}>
+                              Đã bán (Bấm để đổi)
+                            </Tag>
+                          )}
+                        </Popconfirm>
+                      ),
+                      width: 150,
                     },
                     {
                       title: 'NGÀY NHẬP',
@@ -1016,12 +1135,12 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         </Form>
       </Modal>
 
-      {/* MODAL 3: LUÂN CHUYỂN 1 XE ĐƠN LẺ */}
+      {/* MODAL 3: LUÂN CHUYỂN XE THEO SỐ KHUNG */}
       <Modal
         title={
           <Space>
             <SwapOutlined style={{ color: '#722ed1' }} />
-            <span>Luân Chuyển Xe Đơn Lẻ Sang Shop Khác</span>
+            <span>Luân Chuyển Xe Theo Số Khung Sang Shop Khác</span>
           </Space>
         }
         open={isTransferModalOpen}
@@ -1067,7 +1186,7 @@ export const InventoryManagement = ({ currentUser }: InventoryManagementProps) =
         </Form>
       </Modal>
 
-      {/* 🎯 MODAL 4: LUÂN CHUYỂN HÀNG LOẠT CÁC XE ĐÃ TICK CHỌN */}
+      {/* MODAL 4: LUÂN CHUYỂN HÀNG LOẠT */}
       <Modal
         title={
           <Space>
