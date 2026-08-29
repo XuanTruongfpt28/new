@@ -98,7 +98,8 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  const [filterBranch, setFilterBranch] = useState<string>(currentUser.role === 'admin' ? 'all' : currentUser.branch);
+  // Mặc định chọn 'all' (Tất cả chi nhánh) để mọi tài khoản đều tra cứu được toàn hệ thống
+  const [filterBranch, setFilterBranch] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('in_stock');
   const [searchText, setSearchText] = useState('');
 
@@ -143,7 +144,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     fetchData();
   }, []);
 
-  // 🎯 SO KHỚP CHÍNH XÁC 100% SỐ KHUNG (TRÁNH KHỚP NHẦM ĐUÔI SỐ)
   const handleSyncSoldStatus = async (showSuccessMsg = true) => {
     setSyncing(true);
     const hide = showSuccessMsg ? message.loading('Đang quét chính xác số khung các đơn bán...', 0) : () => {};
@@ -166,7 +166,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
         return;
       }
 
-      // Tập hợp các số khung đã bán
       const soldFrameMap = new Map<string, Customer>();
       allSales.forEach((c) => {
         const raw = (c.frameNumber || c.so_khung || '').trim();
@@ -188,7 +187,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
         return;
       }
 
-      // Chỉ lấy xe có số khung KHỚP CHÍNH XÁC 100%
       const matchedToSold: { item: VehicleStockItem; customer: Customer }[] = [];
 
       stockItems.forEach((inv) => {
@@ -248,7 +246,6 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     return vehicleList.filter((v) => v.id && selectedRowKeys.includes(v.id));
   }, [vehicleList, selectedRowKeys]);
 
-  // Đổi trạng thái trực tiếp của 1 xe
   const handleToggleStatus = async (record: VehicleStockItem) => {
     const newStatus = record.status === 'in_stock' ? 'sold' : 'in_stock';
     try {
@@ -733,24 +730,19 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
               <Card size="small" style={{ borderRadius: 8 }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
                   <Space wrap>
-                    {currentUser.role === 'admin' ? (
-                      <Select
-                        value={filterBranch}
-                        onChange={setFilterBranch}
-                        style={{ width: 170 }}
-                        options={[
-                          { label: 'Tất cả chi nhánh', value: 'all' },
-                          { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
-                          { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
-                          { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
-                          { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
-                        ]}
-                      />
-                    ) : (
-                      <Tag color="blue" style={{ fontSize: 13, padding: '4px 8px' }}>
-                        Chi nhánh: {currentUser.branch}
-                      </Tag>
-                    )}
+                    {/* 🔓 MỞ KHÓA CHO TOÀN BỘ TÀI KHOẢN (CẢ ADMIN LẪN NHÂN VIÊN) TRA CỨU MỌI CHI NHÁNH */}
+                    <Select
+                      value={filterBranch}
+                      onChange={setFilterBranch}
+                      style={{ width: 180 }}
+                      options={[
+                        { label: '🏪 Tất cả chi nhánh', value: 'all' },
+                        { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
+                        { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
+                        { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
+                        { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
+                      ]}
+                    />
 
                     <Select
                       value={filterStatus}
