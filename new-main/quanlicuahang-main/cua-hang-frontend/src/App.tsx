@@ -38,12 +38,15 @@ import {
   OrderedListOutlined,
   BarChartOutlined,
   InboxOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { supabase } from './supabase';
 import { SalesAnalytics } from './components/SalesAnalytics';
 import { InventoryManagement } from './components/InventoryManagement';
+import { ActivityLogView } from './components/ActivityLogView';
+import { logActivity } from './utils/logger';
 
 dayjs.extend(customParseFormat);
 
@@ -501,6 +504,18 @@ export default function App() {
         message.success(`Đăng nhập thành công: ${loggedInUser.fullName}!`);
         localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
         setCurrentUser(loggedInUser);
+
+        // Ghi nhận lịch sử đăng nhập tự động
+        await logActivity({
+          actionType: 'LOGIN',
+          description: `Đăng nhập vào hệ thống (${loggedInUser.fullName})`,
+          user: {
+            username: loggedInUser.username,
+            fullName: loggedInUser.fullName,
+            branch: loggedInUser.branch,
+          },
+        });
+
         setAuthLoading(false);
         return;
       }
@@ -529,6 +544,13 @@ export default function App() {
       }
 
       message.success(`Đã đổi mật khẩu cho tài khoản [${selectedAccountToEdit.username}] thành công trên toàn hệ thống!`);
+      
+      // Ghi nhận lịch sử đổi mật khẩu
+      await logActivity({
+        actionType: 'STATUS_CHANGE',
+        description: `Đổi mật khẩu tài khoản [${selectedAccountToEdit.username}] trên toàn hệ thống`,
+      });
+
       setIsPasswordModalOpen(false);
       passwordForm.resetFields();
 
@@ -544,7 +566,13 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (currentUser) {
+      await logActivity({
+        actionType: 'LOGOUT',
+        description: `Đăng xuất khỏi hệ thống (${currentUser.fullName})`,
+      });
+    }
     localStorage.removeItem('currentUser');
     setCurrentUser(null);
     loginForm.resetFields();
@@ -664,12 +692,24 @@ export default function App() {
       if (editingCustomer && editingCustomer.id) {
         await axios.put(`${BASE_API_URL}/customers/${editingCustomer.id}`, values);
         message.success('Cập nhật thành công!');
+
+        // Ghi log cập nhật khách hàng
+        await logActivity({
+          actionType: 'STATUS_CHANGE',
+          description: `Sửa thông tin khách hàng: [${values.fullName}] - SĐT: [${values.phone}]`,
+        });
       } else {
         await axios.post(`${BASE_API_URL}/customers`, values);
         message.success('Thêm mới thành công!');
 
         const frameNum = (values.frameNumber || '').trim();
         const branch = values.branchName || currentUser?.branch || 'Chợ Mới';
+
+        // Ghi log tạo đơn bán mới
+        await logActivity({
+          actionType: 'SALE',
+          description: `Bán xe [${values.brand || ''} ${values.model || ''}] - Khách: [${values.fullName}] - Số khung: [${frameNum || 'N/A'}] - Chi nhánh: [${branch}]`,
+        });
 
         if (frameNum) {
           const { data: invItem } = await supabase
@@ -716,8 +756,16 @@ export default function App() {
   const handleDelete = async (id?: number) => {
     if (!id) return;
     try {
+      const targetCustomer = customers.find((c) => c.id === id);
       await axios.delete(`${BASE_API_URL}/customers/${id}`);
       message.success('Đã xóa thành công!');
+
+      // Ghi log xóa đơn khách hàng
+      await logActivity({
+        actionType: 'DELETE',
+        description: `Xóa hồ sơ khách hàng: [${targetCustomer?.fullName || targetCustomer?.ho_ten || id}] - SĐT: [${targetCustomer?.phone || 'N/A'}]`,
+      });
+
       fetchCustomers();
     } catch {
       message.error('Xóa thất bại!');
@@ -1225,6 +1273,15 @@ export default function App() {
                 parseDateDetails={parseDateDetails}
               />
             ),
+          },
+          {
+            key: 'activity-log',
+            label: (
+              <span>
+                <HistoryOutlined /> Lịch Sử Thao Tác
+              </span>
+            ),
+            children: <ActivityLogView />,
           },
         ]
       : []),
