@@ -708,21 +708,33 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
     }
   };
 
-  const filteredVehicles = useMemo(() => {
-    return vehicleList.filter((item) => {
-      const matchBranch = filterBranch === 'all' ? true : item.branch === filterBranch;
-      const matchStatus = filterStatus === 'all' ? true : item.status === filterStatus;
-      const search = searchText.toLowerCase();
-      const matchSearch =
-        item.frame_number.toLowerCase().includes(search) ||
-        (item.battery_number && item.battery_number.toLowerCase().includes(search)) ||
-        item.brand.toLowerCase().includes(search) ||
-        item.model.toLowerCase().includes(search) ||
-        item.color.toLowerCase().includes(search) ||
-        item.branch.toLowerCase().includes(search);
-      return matchBranch && matchStatus && matchSearch;
-    });
-  }, [vehicleList, filterBranch, filterStatus, searchText]);
+const filteredVehicles = useMemo(() => {
+  return vehicleList.filter((item) => {
+    // 1. Chuyển cả 2 chuỗi về chữ thường và xóa khoảng trắng thừa để so sánh chuẩn xác
+    const itemBranchClean = (item.branch || '').toLowerCase().trim();
+    const filterBranchClean = (filterBranch || '').toLowerCase().trim();
+
+    // 2. Điều kiện lọc chi nhánh không phân biệt chữ HOA / chữ thường
+    const matchBranch = filterBranch === 'all' ? true : (
+      itemBranchClean === filterBranchClean ||
+      itemBranchClean.includes(filterBranchClean) ||
+      filterBranchClean.includes(itemBranchClean)
+    );
+
+    const matchStatus = filterStatus === 'all' ? true : item.status === filterStatus;
+    const search = searchText.toLowerCase().trim();
+    
+    const matchSearch =
+      item.frame_number.toLowerCase().includes(search) ||
+      (item.battery_number && item.battery_number.toLowerCase().includes(search)) ||
+      item.brand.toLowerCase().includes(search) ||
+      item.model.toLowerCase().includes(search) ||
+      item.color.toLowerCase().includes(search) ||
+      item.branch.toLowerCase().includes(search);
+
+    return matchBranch && matchStatus && matchSearch;
+  });
+}, [vehicleList, filterBranch, filterStatus, searchText]);
 
   const inStockCount = vehicleList.filter((v) => v.status === 'in_stock').length;
   const soldCount = vehicleList.filter((v) => v.status === 'sold').length;
