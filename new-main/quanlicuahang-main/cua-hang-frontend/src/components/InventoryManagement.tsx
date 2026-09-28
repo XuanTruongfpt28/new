@@ -415,6 +415,52 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
       setSubmitting(false);
     }
   };
+  // Hàm xuất Excel Xe Tồn Kho / Đã Bán theo Chi Nhánh đang lọc
+const handleExportInventoryExcel = () => {
+  if (filteredVehicles.length === 0) {
+    message.warning('Không có dữ liệu xe nào để xuất Excel!');
+    return;
+  }
+
+  // 1. Chuyển đổi dữ liệu sang định dạng bảng Tiếng Việt dễ đọc
+  const exportData = filteredVehicles.map((item, index) => ({
+    'STT': index + 1,
+    'Số Khung (VIN)': item.frame_number,
+    'Số Acquy / Pin': item.battery_number || '---',
+    'Hãng Xe': item.brand,
+    'Model Xe': item.model,
+    'Màu Sắc': item.color,
+    'Chi Nhánh': item.branch,
+    'Trạng Thái': item.status === 'in_stock' ? 'Đang Tồn Kho' : 'Đã Bán',
+    'Ngày Nhập': item.imported_at ? dayjs(item.imported_at).format('DD/MM/YYYY') : '---',
+  }));
+
+  // 2. Tạo sheet Excel và chỉnh độ rộng cột tự động
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  worksheet['!cols'] = [
+    { wch: 6 },  // STT
+    { wch: 22 }, // Số Khung
+    { wch: 20 }, // Số Acquy
+    { wch: 15 }, // Hãng Xe
+    { wch: 18 }, // Model Xe
+    { wch: 15 }, // Màu Sắc
+    { wch: 18 }, // Chi Nhánh
+    { wch: 16 }, // Trạng Thái
+    { wch: 14 }, // Ngày Nhập
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  const branchNameStr = filterBranch === 'all' ? 'All_ChiNhanh' : filterBranch.replace(/\s+/g, '_');
+  const statusStr = filterStatus === 'in_stock' ? 'TonKho' : filterStatus === 'sold' ? 'DaBan' : 'TatCa';
+  
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'BaoCaoKhoXe');
+
+  // 3. Đặt tên file tự động theo Chi nhánh & Trạng thái đang chọn
+  const fileName = `Bao_Cao_Kho_Xe_${branchNameStr}_${statusStr}_${dayjs().format('DDMMYYYY')}.xlsx`;
+  XLSX.writeFile(workbook, fileName);
+
+  message.success(`Đã xuất file Excel: ${fileName}`);
+};
 
   const handleDownloadSampleExcel = () => {
     const sampleData = [
@@ -846,8 +892,26 @@ const filteredVehicles = useMemo(() => {
                       Đồng Bộ Đơn Đã Bán
                     </Button>
                   </Space>
-
                   <Space wrap>
+                    {/* Nút Xuất Excel theo bộ lọc chi nhánh/trạng thái hiện tại */}
+                    <Button
+                      type="primary"
+                      icon={<DownloadOutlined />}
+                      style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
+                      onClick={handleExportInventoryExcel}
+                    >
+                      Xuất Excel ({filteredVehicles.length} xe)
+                    </Button>
+
+                    <Button icon={<DownloadOutlined />} onClick={handleDownloadSampleExcel}>
+                      Tải Mẫu Excel Số Khung
+                    </Button>
+
+                    {/* Các nút Nhập Excel, Nhập thủ công... giữ nguyên */}
+                  </Space>
+                  <Space wrap>
+                    
+                    
                     <Button icon={<DownloadOutlined />} onClick={handleDownloadSampleExcel}>
                       Tải Mẫu Excel Số Khung
                     </Button>
