@@ -417,51 +417,130 @@ export const InventoryManagement = ({ currentUser, customers = [] }: InventoryMa
   };
   // Hàm xuất Excel Xe Tồn Kho / Đã Bán theo Chi Nhánh đang lọc
 const handleExportInventoryExcel = () => {
-  if (filteredVehicles.length === 0) {
-    message.warning('Không có dữ liệu xe nào để xuất Excel!');
+  if (vehicleList.length === 0) {
+    message.warning('Không có dữ liệu xe nào trong hệ thống!');
     return;
   }
 
-  // 1. Chuyển đổi dữ liệu sang định dạng bảng Tiếng Việt dễ đọc
-  const exportData = filteredVehicles.map((item, index) => ({
-    'STT': index + 1,
-    'Số Khung (VIN)': item.frame_number,
-    'Số Acquy / Pin': item.battery_number || '---',
-    'Hãng Xe': item.brand,
-    'Model Xe': item.model,
-    'Màu Sắc': item.color,
-    'Chi Nhánh': item.branch,
-    'Trạng Thái': item.status === 'in_stock' ? 'Đang Tồn Kho' : 'Đã Bán',
-    'Ngày Nhập': item.imported_at ? dayjs(item.imported_at).format('DD/MM/YYYY') : '---',
-  }));
-
-  // 2. Tạo sheet Excel và chỉnh độ rộng cột tự động
-  const worksheet = XLSX.utils.json_to_sheet(exportData);
-  worksheet['!cols'] = [
-    { wch: 6 },  // STT
-    { wch: 22 }, // Số Khung
-    { wch: 20 }, // Số Acquy
-    { wch: 15 }, // Hãng Xe
-    { wch: 18 }, // Model Xe
-    { wch: 15 }, // Màu Sắc
-    { wch: 18 }, // Chi Nhánh
-    { wch: 16 }, // Trạng Thái
-    { wch: 14 }, // Ngày Nhập
-  ];
-
   const workbook = XLSX.utils.book_new();
-  const branchNameStr = filterBranch === 'all' ? 'All_ChiNhanh' : filterBranch.replace(/\s+/g, '_');
-  const statusStr = filterStatus === 'in_stock' ? 'TonKho' : filterStatus === 'sold' ? 'DaBan' : 'TatCa';
-  
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'BaoCaoKhoXe');
+  const branches = ['Chợ Mới', 'Lấp Vò', 'Mỹ Luông 3', 'Mỹ Luông 4'];
 
-  // 3. Đặt tên file tự động theo Chi nhánh & Trạng thái đang chọn
-  const fileName = `Bao_Cao_Kho_Xe_${branchNameStr}_${statusStr}_${dayjs().format('DDMMYYYY')}.xlsx`;
+  // 1. SHEET 1: TỔNG HỢP TỔNG QUAN HỆ THỐNG
+  const summaryRows = branches.map((branchName, index) => {
+    const branchVehicles = vehicleList.filter(
+      (v) => (v.branch || '').toLowerCase().trim() === branchName.toLowerCase().trim()
+    );
+    const inStock = branchVehicles.filter((v) => v.status === 'in_stock').length;
+    const sold = branchVehicles.filter((v) => v.status === 'sold').length;
+
+    return {
+      'STT': index + 1,
+      'Chi Nhánh': branchName,
+      'Xe Đang Tồn Kho': inStock,
+      'Xe Đã Bán': sold,
+      'Tổng Số Xe': branchVehicles.length,
+    };
+  });
+
+  const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+  summarySheet['!cols'] = [{ wch: 6 }, { wch: 20 }, { wch: 18 }, { wch: 15 }, { wch: 15 }];
+  XLSX.utils.book_append_sheet(workbook, summarySheet, 'TONG_HOP');
+
+  // 2. TẠO CÁC SHEET TỒN KHO CHO TỪNG CHI NHÁNH (CHỈ LẤY XE TỒN KHO & GOM NHÓM THEO HÃNG)
+  branches.forEach((branchName) => {
+    // Chỉ lọc ra xe ĐANG TỒN KHO của chi nhánh này
+    const branchInStockVehicles = vehicleList.filter(
+      (v) =>
+        (v.branch || '').toLowerCase().trim() === branchName.toLowerCase().trim() &&
+        v.status === 'in_stock'
+    );
+
+    if (branchInStockVehicles.length === 0) return;
+
+    // Sắp xếp: Gom nhóm theo HÃNG XE trước, sau đó đến Model Xe
+    const sortedVehicles = [...branchInStockVehicles].sort((a, b) => {
+      const brandCompare = (a.brand || '').localeCompare(b.brand || '');
+      if (brandCompare !== 0) return brandCompare;
+      return (a.model || '').localeCompare(b.model || '');
+    });
+
+    const branchRows = sortedVehicles.map((item, idx) => ({
+      'STT': idx + 1,
+      'Hãng Xe': item.brand,
+      'Model Xe': item.model,
+      'Số Khung (VIN)': item.frame_number,
+      'Số Acquy / Pin': item.battery_number || '---',
+      'Màu Sắc': item.color,
+      'Trạng Thái': '📦 Tồn Kho',
+      'Ngày Nhập Kho': item.imported_at ? dayjs(item.imported_at).format('DD/MM/YYYY') : '---',
+    }));
+
+    const sheet = XLSX.utils.json_to_sheet(branchRows);
+    sheet['!cols'] = [
+      { wch: 6 },  // STT
+      { wch: 16 }, // Hãng Xe
+      { wch: 18 }, // Model Xe
+      { wch: 24 }, // Số Khung
+      { wch: 22 }, // Số Acquy
+      { wch: 15 }, // Màu Sắc
+      { wch: 14 }, // Trạng Thái
+      { wch: 16 }, // Ngày Nhập
+    ];
+
+    const safeSheetName = branchName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .replace(/\s+/g, '_');
+
+    XLSX.utils.book_append_sheet(workbook, sheet, `Ton_${safeSheetName}`);
+  });
+
+  // 3. SHEET RIÊNG DÀNH CHO TẤT CẢ XE ĐÃ BÁN TOÀN HỆ THỐNG
+  const allSoldVehicles = vehicleList.filter((v) => v.status === 'sold');
+
+  if (allSoldVehicles.length > 0) {
+    // Sắp xếp danh sách xe đã bán theo Chi Nhánh -> Hãng Xe
+    const sortedSold = [...allSoldVehicles].sort((a, b) => {
+      const branchCompare = (a.branch || '').localeCompare(b.branch || '');
+      if (branchCompare !== 0) return branchCompare;
+      return (a.brand || '').localeCompare(b.brand || '');
+    });
+
+    const soldRows = sortedSold.map((item, idx) => ({
+      'STT': idx + 1,
+      'Chi Nhánh Bán': item.branch,
+      'Hãng Xe': item.brand,
+      'Model Xe': item.model,
+      'Số Khung (VIN)': item.frame_number,
+      'Số Acquy / Pin': item.battery_number || '---',
+      'Màu Sắc': item.color,
+      'Trạng Thái': '✅ Đã Bán',
+      'Cập Nhật Cuối': item.updated_at ? dayjs(item.updated_at).format('DD/MM/YYYY HH:mm') : '---',
+    }));
+
+    const soldSheet = XLSX.utils.json_to_sheet(soldRows);
+    soldSheet['!cols'] = [
+      { wch: 6 },  // STT
+      { wch: 18 }, // Chi Nhánh
+      { wch: 16 }, // Hãng Xe
+      { wch: 18 }, // Model Xe
+      { wch: 24 }, // Số Khung
+      { wch: 22 }, // Số Acquy
+      { wch: 15 }, // Màu Sắc
+      { wch: 14 }, // Trạng Thái
+      { wch: 18 }, // Ngày Cập Nhật
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, soldSheet, 'XE_DA_BAN');
+  }
+
+  // 4. XUẤT FILE EXCEL
+  const fileName = `Bao_Cao_Kho_Va_Da_Ban_${dayjs().format('DDMMYYYY')}.xlsx`;
   XLSX.writeFile(workbook, fileName);
-
-  message.success(`Đã xuất file Excel: ${fileName}`);
+  message.success(`Đã xuất báo cáo phân loại theo Sheet riêng biệt thành công!`);
 };
-
   const handleDownloadSampleExcel = () => {
     const sampleData = [
       {
@@ -901,11 +980,7 @@ const filteredVehicles = useMemo(() => {
                       onClick={handleExportInventoryExcel}
                     >
                       Xuất Excel ({filteredVehicles.length} xe)
-                    </Button>
-
-                    <Button icon={<DownloadOutlined />} onClick={handleDownloadSampleExcel}>
-                      Tải Mẫu Excel Số Khung
-                    </Button>
+                    </Button>               
 
                     {/* Các nút Nhập Excel, Nhập thủ công... giữ nguyên */}
                   </Space>
