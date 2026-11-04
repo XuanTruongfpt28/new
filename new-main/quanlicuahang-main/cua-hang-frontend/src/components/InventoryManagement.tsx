@@ -943,6 +943,7 @@ const filteredVehicles = useMemo(() => {
                         { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                         { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                         { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
+                        
                       ]}
                     />
 
@@ -1388,6 +1389,10 @@ const filteredVehicles = useMemo(() => {
 
           <Form.Item name="toBranch" label="Chuyển đến Chi nhánh" rules={[{ required: true, message: 'Chọn chi nhánh nhận!' }]}>
             <Select
+              showSearch
+              allowClear
+              placeholder="Chọn hoặc gõ trực tiếp tên đại lý mới..."
+              optionFilterProp="label"
               options={[
                 { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                 { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
@@ -1395,6 +1400,10 @@ const filteredVehicles = useMemo(() => {
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
               ]}
+              dropdownRender={(menu) => <>{menu}</>}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             />
           </Form.Item>
 
@@ -1442,12 +1451,16 @@ const filteredVehicles = useMemo(() => {
           <Form.Item name="toBranch" label="Chuyển tất cả đến Chi nhánh" rules={[{ required: true, message: 'Vui lòng chọn chi nhánh nhận!' }]}>
             <Select
               placeholder="Chọn chi nhánh đích..."
+              value={filterBranch}
+              onChange={setFilterBranch}
+              style={{ width: 180 }}
               options={[
                 { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                 { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
                 { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
+                { label: '🏢 Xuất Đại Lý / Khác', value: 'Đại Lý' },
               ]}
             />
           </Form.Item>
