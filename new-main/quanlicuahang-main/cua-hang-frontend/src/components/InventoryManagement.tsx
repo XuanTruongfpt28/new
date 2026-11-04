@@ -423,7 +423,7 @@ const handleExportInventoryExcel = () => {
   }
 
   const workbook = XLSX.utils.book_new();
-  const branches = ['Chợ Mới', 'Lấp Vò', 'Mỹ Luông 3', 'Mỹ Luông 4', 'Lấp Vò 5' ];
+  const branches = ['Chợ Mới', 'Lấp Vò', 'Mỹ Luông 3', 'Mỹ Luông 4', 'Lấp Vò 5',  'Đại Lý'];
 
   // 1. SHEET 1: TỔNG HỢP TỔNG QUAN HỆ THỐNG
   const summaryRows = branches.map((branchName, index) => {
@@ -943,6 +943,7 @@ const filteredVehicles = useMemo(() => {
                         { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                         { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                         { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
+                        { label: 'Chi nhánh Đại Lý', value: 'Đại Lý' },
                         
                       ]}
                     />
@@ -1313,6 +1314,7 @@ const filteredVehicles = useMemo(() => {
                 { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
+                { label: 'Chi nhánh Đại Lý', value: 'Đại Lý' }
               ]}
             />
           </Form.Item>
@@ -1399,6 +1401,7 @@ const filteredVehicles = useMemo(() => {
                 { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
+                { label: 'Chi nhánh Đại Lý', value: 'Đại Lý' },
               ]}
               dropdownRender={(menu) => <>{menu}</>}
               filterOption={(input, option) =>
@@ -1460,7 +1463,7 @@ const filteredVehicles = useMemo(() => {
                 { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
-                { label: '🏢 Xuất Đại Lý / Khác', value: 'Đại Lý' },
+                { label: 'Chi nhánh Đại Lý', value: 'Đại Lý' },
               ]}
             />
           </Form.Item>
