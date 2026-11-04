@@ -848,11 +848,8 @@ const filteredVehicles = useMemo(() => {
     const filterBranchClean = (filterBranch || '').toLowerCase().trim();
 
     // 2. Điều kiện lọc chi nhánh không phân biệt chữ HOA / chữ thường
-    const matchBranch = filterBranch === 'all' ? true : (
-      itemBranchClean === filterBranchClean ||
-      itemBranchClean.includes(filterBranchClean) ||
-      filterBranchClean.includes(itemBranchClean)
-    );
+// 2. Chỉ so sánh bằng chính xác tuyệt đối, loại bỏ .includes() để Lấp Vò và Lấp Vò 5 không bị dính nhau
+    const matchBranch = filterBranch === 'all' ? true : itemBranchClean === filterBranchClean;
 
     const matchStatus = filterStatus === 'all' ? true : item.status === filterStatus;
     const search = searchText.toLowerCase().trim();
