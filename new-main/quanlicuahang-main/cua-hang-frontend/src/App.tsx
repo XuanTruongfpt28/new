@@ -99,6 +99,7 @@ const DEFAULT_FIXED_ACCOUNTS: SystemAccount[] = [
   { username: 'admin', password: '123456', fullName: 'Ban Quản Trị (Admin)', branch: 'Chợ Mới', role: 'admin' },
   { username: 'chomoi', password: '123456', fullName: 'Chi Nhánh Chợ Mới', branch: 'Chợ Mới', role: 'staff' },
   { username: 'lapvo', password: '123456', fullName: 'Chi Nhánh Lấp Vò', branch: 'Lấp Vò', role: 'staff' },
+  { username: 'lapvo5', password: '123456', fullName: 'Chi Nhánh Lấp Vò 5', branch: 'Lấp Vò 5', role: 'staff' },
   { username: 'myluong3', password: '123456', fullName: 'Chi Nhánh Mỹ Luông 3', branch: 'Mỹ Luông 3', role: 'staff' },
   { username: 'myluong4', password: '123456', fullName: 'Chi Nhánh Mỹ Luông 4', branch: 'Mỹ Luông 4', role: 'staff' },
 ];
@@ -234,12 +235,16 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
     headerAddress = 'Bình Hiệp A, xã Lấp Vò, tỉnh Đồng Tháp';
     sellerTitle = 'I. Bên A ( Bên bán xe):  Công ty TNHH XE ĐIỆN THANH TƯƠI';
     bankAccount = 'Tài khoản: Công ty TNHH Xe điện Thanh Tươi - MBBANK- 6167676868';
+  } else if (selectedBranch === 'Lấp Vò 5') {
+    headerAddress = '[Nhập địa chỉ Lấp Vò 5 vào đây, tỉnh Đồng Tháp]';
+    sellerTitle = 'I. Bên A ( Bên bán xe):  Công ty TNHH XE ĐIỆN THANH TƯƠI';
+    bankAccount = 'Tài khoản: Công ty TNHH Xe điện Thanh Tươi - MBBANK- 6167676868';
   } else if (selectedBranch === 'Mỹ Luông 3') {
     headerAddress = 'Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang';
-    sellerTitle = 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CN3';
+    sellerTitle = 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI ';
   } else if (selectedBranch === 'Mỹ Luông 4') {
     headerAddress = '293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang';
-    sellerTitle = 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI CN4';
+    sellerTitle = 'Bên A ( Bên bán xe): Công ty TNHH XE ĐIỆN THANH TƯƠI ';
   }
 
   const printWindow = window.open('', '_blank');
@@ -297,6 +302,7 @@ const executePrintContract = (customer: Customer, selectedBranch: string = 'Ch�
         <div>CN2: Tỉnh lộ 942, xã Chợ Mới, tỉnh An Giang</div>
         <div>CN3: Châu Văn Liêm, ấp Thị 2, xã Long Điền, tỉnh An Giang</div>
         <div>CN4: 293 Châu Văn Liêm, xã Long Điền, tỉnh An Giang</div>
+        <div>CN5: QL80, Bình Thạnh 2, xã Lấp Vò, tỉnh Đồng Tháp</div>
 
         <div style="margin-top: 3px;"><strong>Bên B ( Bên mua xe):</strong></div>
         <div>
@@ -635,6 +641,8 @@ export default function App() {
     const currentBranch = (record.branchName || record.chi_nhanh || '').trim().toLowerCase();
     if (currentBranch.includes('lấp vò')) {
       setSelectedBranchToPrint('Lấp Vò');
+    } else if (currentBranch.includes('lấp vò 5') || currentBranch.includes('5')) {
+      setSelectedBranchToPrint('Lấp Vò 5');
     } else if (currentBranch.includes('cn 4') || currentBranch.includes('4')) {
       setSelectedBranchToPrint('Mỹ Luông 4');
     } else if (currentBranch.includes('cn 3') || currentBranch.includes('3') || currentBranch.includes('mỹ luông')) {
@@ -1523,6 +1531,7 @@ export default function App() {
             <Radio value="Lấp Vò"><strong>Chi nhánh Lấp Vò</strong></Radio>
             <Radio value="Mỹ Luông 3"><strong>Chi nhánh Mỹ Luông 3</strong></Radio>
             <Radio value="Mỹ Luông 4"><strong>Chi nhánh Mỹ Luông 4</strong></Radio>
+            <Radio value="Lấp Vò 5"><strong>Chi nhánh Lấp Vò 5</strong></Radio>
           </Radio.Group>
         </div>
       </Modal>
@@ -1577,6 +1586,7 @@ export default function App() {
               options={[
                 { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                 { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
+                { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
               ]}

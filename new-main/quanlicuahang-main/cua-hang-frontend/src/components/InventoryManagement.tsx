@@ -423,7 +423,7 @@ const handleExportInventoryExcel = () => {
   }
 
   const workbook = XLSX.utils.book_new();
-  const branches = ['Chợ Mới', 'Lấp Vò', 'Mỹ Luông 3', 'Mỹ Luông 4'];
+  const branches = ['Chợ Mới', 'Lấp Vò', 'Mỹ Luông 3', 'Mỹ Luông 4', 'Lấp Vò 5' ];
 
   // 1. SHEET 1: TỔNG HỢP TỔNG QUAN HỆ THỐNG
   const summaryRows = branches.map((branchName, index) => {
@@ -605,8 +605,16 @@ const handleExportInventoryExcel = () => {
         const formattedRows: ExcelVehicleRow[] = rawJson
           .map((row: any) => {
             let branchName = String(row['Chi Nhánh'] || row['chi_nhanh'] || currentUser.branch).trim();
-            if (branchName.toLowerCase() === 'mỹ luông') branchName = 'Mỹ Luông 3';
-
+              
+              if (branchName.toLowerCase().includes('lấp vò 5')) {
+                branchName = 'Lấp Vò 5';
+              } else if (branchName.toLowerCase().includes('lấp vò')) {
+                branchName = 'Lấp Vò';
+              } else if (branchName.toLowerCase().includes('chợ mới')) {
+                branchName = 'Chợ Mới';
+              } else if (branchName.toLowerCase() === 'mỹ luông') {
+                branchName = 'Mỹ Luông 3';
+              }
             return {
               branch: branchName,
               brand: String(row['Hãng Xe'] || row['hang_xe'] || row['Hãng'] || '').trim(),
@@ -935,6 +943,7 @@ const filteredVehicles = useMemo(() => {
                         { label: '🏪 Tất cả chi nhánh', value: 'all' },
                         { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                         { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
+                        { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                         { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                         { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
                       ]}
@@ -1303,6 +1312,7 @@ const filteredVehicles = useMemo(() => {
               options={[
                 { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                 { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
+                { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
               ]}
@@ -1384,6 +1394,7 @@ const filteredVehicles = useMemo(() => {
               options={[
                 { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                 { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
+                { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
               ]}
@@ -1437,6 +1448,7 @@ const filteredVehicles = useMemo(() => {
               options={[
                 { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                 { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
+                { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
               ]}

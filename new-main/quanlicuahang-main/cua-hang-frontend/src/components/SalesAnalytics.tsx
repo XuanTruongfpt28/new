@@ -15,6 +15,7 @@ interface SalesAnalyticsProps {
 const normalizeBranchName = (rawBranch?: string): string => {
   if (!rawBranch) return 'Chợ Mới';
   const str = rawBranch.trim().toLowerCase();
+  if (str.includes('lấp vò 5') || str.includes('lap vo 5')) return 'Lấp Vò 5';
   if (str.includes('lấp vò') || str.includes('lap vo')) return 'Lấp Vò';
   if (str.includes('chợ mới') || str.includes('cho moi')) return 'Chợ Mới';
   if (str.includes('mỹ luông - cn 3') || str.includes('mỹ luông 3') || str.includes('cn 3') || str.includes('cn3')) return 'Mỹ Luông 3';
@@ -62,7 +63,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
 
     // Khởi tạo 4 chi nhánh
     const branchMap = new Map<string, { count: number; revenue: number }>();
-    ['Chợ Mới', 'Lấp Vò', 'Mỹ Luông 3', 'Mỹ Luông 4'].forEach((b) => branchMap.set(b, { count: 0, revenue: 0 }));
+    ['Chợ Mới', 'Lấp Vò', 'Mỹ Luông 3', 'Mỹ Luông 4','Lấp Vò 5'].forEach((b) => branchMap.set(b, { count: 0, revenue: 0 }));
 
     filtered.forEach((item) => {
       const branch = normalizeBranchName(item.branchName || item.chi_nhanh);
@@ -133,6 +134,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
                 { label: 'Tất cả chi nhánh', value: 'all' },
                 { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
                 { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
+                { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
                 { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
                 { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
               ]}
