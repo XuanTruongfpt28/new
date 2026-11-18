@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Radio, DatePicker, Select, Progress, Typography, Space } from 'antd';
+import { Card, Row, Col, Statistic, Table, Tag, Radio, DatePicker, Select, Typography, Space } from 'antd';
 import { CarOutlined, DollarCircleOutlined, TrophyOutlined, RiseOutlined, ShopOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 
