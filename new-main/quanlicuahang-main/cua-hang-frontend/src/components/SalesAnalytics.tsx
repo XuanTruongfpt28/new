@@ -24,6 +24,20 @@ const normalizeBranchName = (rawBranch?: string): string => {
   return rawBranch.trim();
 };
 
+// Hàm kiểm tra chính xác đơn hàng có phải là "Khách mua Acquy" hay không
+const checkIsAcquyOrder = (item: any): boolean => {
+  const fullVName = (item.vehicleName || '').trim().toLowerCase();
+  const brand = (item.brand || '').trim().toLowerCase();
+  const model = (item.model || '').trim().toLowerCase();
+  const combinedName = `${brand} ${model}`.trim();
+
+  return (
+    fullVName === 'khách mua acquy' ||
+    brand === 'khách mua acquy' ||
+    combinedName === 'khách mua acquy'
+  );
+};
+
 export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: SalesAnalyticsProps) => {
   const [reportFilterType, setReportFilterType] = useState<'day' | 'month'>('month');
   const [reportDate, setReportDate] = useState<Dayjs>(dayjs());
@@ -50,14 +64,14 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
     // Lọc theo hãng / loại
     if (reportBrand !== 'all') {
       filtered = filtered.filter((item) => {
-        const fullVName = (item.vehicleName || '').toLowerCase();
-        const brand = (item.brand || fullVName.split(' ')[0] || '').trim();
-        const isAcquy = brand.toLowerCase().includes('acquy') || fullVName.includes('acquy') || fullVName.includes('mua acquy');
-        
+        const isAcquy = checkIsAcquyOrder(item);
+        const fullVName = (item.vehicleName || '').trim().toLowerCase();
+        const brand = (item.brand || fullVName.split(' ')[0] || '').trim().toLowerCase();
+
         if (reportBrand === 'Khách mua Acquy') {
           return isAcquy;
         }
-        return !isAcquy && brand.toLowerCase() === reportBrand.toLowerCase();
+        return !isAcquy && brand === reportBrand.toLowerCase();
       });
     }
 
@@ -68,7 +82,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
 
     // Khởi tạo 5 chi nhánh
     const branchMap = new Map<string, { vehicleCount: number; vehicleRevenue: number; acquyCount: number; acquyRevenue: number }>();
-    ['Chợ Mới', 'Lấp Vò', 'Lấp Vò 5', 'Mỹ Luông 3', 'Mỹ Luông 4'].forEach((b) => 
+    ['Chợ Mới', 'Lấp Vò', 'Lấp Vò 5', 'Mỹ Luông 3', 'Mỹ Luông 4'].forEach((b) =>
       branchMap.set(b, { vehicleCount: 0, vehicleRevenue: 0, acquyCount: 0, acquyRevenue: 0 })
     );
 
@@ -77,27 +91,24 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
       const val = Number(String(item.price || item.gia_xe || 0).replace(/[^0-9]/g, ''));
       const safeVal = isNaN(val) ? 0 : val;
 
-      const fullVName = (item.vehicleName || '').toLowerCase();
-      const brand = (item.brand || '').toLowerCase();
-      const isAcquy = brand.includes('acquy') || fullVName.includes('acquy') || fullVName.includes('mua acquy');
-
+      const isAcquy = checkIsAcquyOrder(item);
       const curr = branchMap.get(branch) || { vehicleCount: 0, vehicleRevenue: 0, acquyCount: 0, acquyRevenue: 0 };
 
       if (isAcquy) {
         totalAcquyCount += 1;
         totalAcquyRevenue += safeVal;
-        branchMap.set(branch, { 
-          ...curr, 
-          acquyCount: curr.acquyCount + 1, 
-          acquyRevenue: curr.acquyRevenue + safeVal 
+        branchMap.set(branch, {
+          ...curr,
+          acquyCount: curr.acquyCount + 1,
+          acquyRevenue: curr.acquyRevenue + safeVal,
         });
       } else {
         totalVehicleCount += 1;
         totalVehicleRevenue += safeVal;
-        branchMap.set(branch, { 
-          ...curr, 
-          vehicleCount: curr.vehicleCount + 1, 
-          vehicleRevenue: curr.vehicleRevenue + safeVal 
+        branchMap.set(branch, {
+          ...curr,
+          vehicleCount: curr.vehicleCount + 1,
+          vehicleRevenue: curr.vehicleRevenue + safeVal,
         });
       }
     });
@@ -108,44 +119,45 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
       branch,
       vehicleCount: stat.vehicleCount,
       acquyCount: stat.acquyCount,
-      count: stat.vehicleCount, 
-      revenue: stat.vehicleRevenue + stat.acquyRevenue, 
+      count: stat.vehicleCount,
+      revenue: stat.vehicleRevenue + stat.acquyRevenue,
       vehicleRevenue: stat.vehicleRevenue,
       acquyRevenue: stat.acquyRevenue,
       percentage: totalVehicleCount > 0 ? Math.round((stat.vehicleCount / totalVehicleCount) * 100) : 0,
     }));
 
     // Thống kê theo Hãng & Model
-    const modelMap = new Map<string, { brand: string; model: string; branch: string; count: number; revenue: number }>();
+    const modelMap = new Map<string, { brand: string; model: string; branch: string; count: number; revenue: number; isAcquy: boolean }>();
     filtered.forEach((item) => {
+      const isAcquy = checkIsAcquyOrder(item);
       const parts = (item.vehicleName || '').split(' ');
-      const brand = (item.brand || parts[0] || 'Khác').trim();
-      const model = (item.model || parts.slice(1).join(' ') || item.vehicleName || 'Chưa rõ model').trim();
+      const brand = isAcquy ? 'Khách' : (item.brand || parts[0] || 'Khác').trim();
+      const model = isAcquy ? 'mua Acquy' : (item.model || parts.slice(1).join(' ') || item.vehicleName || 'Chưa rõ model').trim();
       const branch = normalizeBranchName(item.branchName || item.chi_nhanh);
       const val = Number(String(item.price || item.gia_xe || 0).replace(/[^0-9]/g, ''));
       const safeVal = isNaN(val) ? 0 : val;
 
       const key = `${brand}__${model}__${branch}`;
-      const curr = modelMap.get(key) || { brand, model, branch, count: 0, revenue: 0 };
-      modelMap.set(key, { brand, model, branch, count: curr.count + 1, revenue: curr.revenue + safeVal });
+      const curr = modelMap.get(key) || { brand, model, branch, count: 0, revenue: 0, isAcquy };
+      modelMap.set(key, { brand, model, branch, count: curr.count + 1, revenue: curr.revenue + safeVal, isAcquy });
     });
 
     const modelSummary = Array.from(modelMap.values()).sort((a, b) => b.count - a.count);
-    const vehicleModels = modelSummary.filter(m => !m.brand.toLowerCase().includes('acquy') && !m.model.toLowerCase().includes('acquy'));
-    
+    const vehicleModels = modelSummary.filter((m) => !m.isAcquy);
+
     const topModel = vehicleModels.length > 0 ? `${vehicleModels[0].brand} ${vehicleModels[0].model} (${vehicleModels[0].count} xe)` : 'Chưa có';
-    
+
     const sortedBranches = [...branchSummary].sort((a, b) => b.vehicleCount - a.vehicleCount);
     const topBranch = sortedBranches.length > 0 && sortedBranches[0].vehicleCount > 0 ? `${sortedBranches[0].branch} (${sortedBranches[0].vehicleCount} xe)` : 'Chưa có';
 
-    return { 
-      totalCount: totalVehicleCount, 
+    return {
+      totalCount: totalVehicleCount,
       totalAcquyCount,
-      totalRevenue, 
-      branchSummary, 
-      modelSummary, 
-      topModel, 
-      topBranch 
+      totalRevenue,
+      branchSummary,
+      modelSummary,
+      topModel,
+      topBranch,
     };
   }, [customers, reportFilterType, reportDate, reportBranch, reportBrand, parseDateDetails]);
 
@@ -189,15 +201,15 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
 
           <Col xs={24} sm={12} md={6}>
             <Text strong style={{ display: 'block', marginBottom: 4 }}>Lọc Hãng Xe:</Text>
-            <Select 
-              value={reportBrand} 
-              onChange={(val) => setReportBrand(val)} 
-              style={{ width: '100%' }} 
+            <Select
+              value={reportBrand}
+              onChange={(val) => setReportBrand(val)}
+              style={{ width: '100%' }}
               options={[
-                { label: 'Tất cả hãng xe', value: 'all' }, 
+                { label: 'Tất cả hãng xe', value: 'all' },
                 { label: 'Khách mua Acquy', value: 'Khách mua Acquy' },
-                ...brandOptions
-              ]} 
+                ...brandOptions.filter((b) => b.value.toLowerCase() !== 'khách' && b.value.toLowerCase() !== 'khách mua acquy'),
+              ]}
             />
           </Col>
         </Row>
@@ -237,12 +249,12 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
               columns={[
                 { title: 'Chi Nhánh', dataIndex: 'branch', key: 'branch', render: (b) => <Tag color="blue" style={{ fontWeight: 600 }}>{b}</Tag> },
                 { title: 'Số Xe', dataIndex: 'vehicleCount', key: 'vehicleCount', align: 'center', render: (cnt) => <strong>{cnt} xe</strong> },
-                { title: 'Số Acquy', dataIndex: 'acquyCount', key: 'acquyCount', align: 'center', render: (cnt) => cnt > 0 ? <Tag color="orange">{cnt} bộ</Tag> : <Text type="secondary">0</Text> },
-                { 
-                  title: 'Doanh Thu', 
-                  dataIndex: 'revenue', 
-                  key: 'revenue', 
-                  align: 'right', 
+                { title: 'Số Acquy', dataIndex: 'acquyCount', key: 'acquyCount', align: 'center', render: (cnt) => (cnt > 0 ? <Tag color="orange">{cnt} bộ</Tag> : <Text type="secondary">0</Text>) },
+                {
+                  title: 'Doanh Thu',
+                  dataIndex: 'revenue',
+                  key: 'revenue',
+                  align: 'right',
                   render: (rev, record: any) => (
                     <div>
                       <span style={{ color: '#389e0d', fontWeight: 600 }}>{Number(rev).toLocaleString('vi-VN')} đ</span>
@@ -250,7 +262,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
                         (Xe: {Number(record.vehicleRevenue).toLocaleString('vi-VN')} | Acq: {Number(record.acquyRevenue).toLocaleString('vi-VN')})
                       </div>
                     </div>
-                  ) 
+                  ),
                 },
               ]}
             />
@@ -268,7 +280,18 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
                 { title: 'Hãng Xe', dataIndex: 'brand', key: 'brand', render: (b) => <Tag color="cyan">{b}</Tag> },
                 { title: 'Model Xe', dataIndex: 'model', key: 'model', render: (m) => <strong>{m}</strong> },
                 { title: 'Chi Nhánh Bán', dataIndex: 'branch', key: 'branch', render: (br) => <Tag color="geekblue">{br}</Tag> },
-                { title: 'Số Lượng', dataIndex: 'count', key: 'count', align: 'center', render: (c) => <Tag color="volcano" style={{ fontWeight: 700 }}>{c} xe</Tag>, width: 90 },
+                {
+                  title: 'Số Lượng',
+                  dataIndex: 'count',
+                  key: 'count',
+                  align: 'center',
+                  render: (c, r: any) => (
+                    <Tag color={r.isAcquy ? 'orange' : 'volcano'} style={{ fontWeight: 700 }}>
+                      {c} {r.isAcquy ? 'bộ' : 'xe'}
+                    </Tag>
+                  ),
+                  width: 90,
+                },
                 { title: 'Tổng Tiền (VNĐ)', dataIndex: 'revenue', key: 'revenue', align: 'right', render: (rev) => <span style={{ color: '#389e0d', fontWeight: 600 }}>{Number(rev).toLocaleString('vi-VN')} đ</span> },
               ]}
             />
