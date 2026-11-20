@@ -1,7 +1,32 @@
-import { useState, useMemo } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Radio, DatePicker, Select, Typography, Space } from 'antd';
-import { CarOutlined, DollarCircleOutlined, TrophyOutlined, RiseOutlined, ShopOutlined } from '@ant-design/icons';
+import { useState, useEffect, useMemo } from 'react';
+import {
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Table,
+  Tag,
+  Radio,
+  DatePicker,
+  Select,
+  Progress,
+  Typography,
+  Space,
+  Button,
+  Modal,
+  InputNumber,
+  message,
+} from 'antd';
+import {
+  CarOutlined,
+  DollarCircleOutlined,
+  TrophyOutlined,
+  RiseOutlined,
+  ShopOutlined,
+  AimOutlined,
+} from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
+import { supabase } from '../supabase';
 
 const { Text } = Typography;
 
@@ -11,7 +36,8 @@ interface SalesAnalyticsProps {
   parseDateDetails: (data: any) => { dayjsObj: Dayjs | null; [key: string]: any };
 }
 
-// Hàm chuẩn hoá tên 5 chi nhánh
+const BRANCH_LIST = ['Chợ Mới', 'Lấp Vò', 'Lấp Vò 5', 'Mỹ Luông 3', 'Mỹ Luông 4'];
+
 const normalizeBranchName = (rawBranch?: string): string => {
   if (!rawBranch) return 'Chợ Mới';
   const str = rawBranch.trim().toLowerCase();
@@ -24,7 +50,6 @@ const normalizeBranchName = (rawBranch?: string): string => {
   return rawBranch.trim();
 };
 
-// Hàm kiểm tra chính xác đơn hàng có phải là "Khách mua Acquy" hay không
 const checkIsAcquyOrder = (item: any): boolean => {
   const fullVName = (item.vehicleName || '').trim().toLowerCase();
   const brand = (item.brand || '').trim().toLowerCase();
@@ -44,10 +69,80 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
   const [reportBranch, setReportBranch] = useState<string>('all');
   const [reportBrand, setReportBrand] = useState<string>('all');
 
+  // State lưu chỉ tiêu của tháng đang chọn
+  const [targetsMap, setTargetsMap] = useState<Record<string, number>>({});
+  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
+  const [editingTargets, setEditingTargets] = useState<Record<string, number>>({});
+  const [savingTargets, setSavingTargets] = useState(false);
+
+  const selectedMonthStr = reportDate.format('YYYY-MM');
+
+  // Tải chỉ tiêu từ Supabase theo tháng
+  const fetchTargets = async (monthStr: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('BranchTarget')
+        .select('*')
+        .eq('month_year', monthStr);
+
+      if (!error && data) {
+        const map: Record<string, number> = {};
+        data.forEach((row: any) => {
+          map[row.branch] = Number(row.target_vehicles) || 0;
+        });
+        setTargetsMap(map);
+      } else {
+        setTargetsMap({});
+      }
+    } catch (err) {
+      console.error('Lỗi tải chỉ tiêu:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchTargets(selectedMonthStr);
+  }, [selectedMonthStr]);
+
+  // Mở Modal nhập KPI
+  const handleOpenTargetModal = () => {
+    const initialValues: Record<string, number> = {};
+    BRANCH_LIST.forEach((b) => {
+      initialValues[b] = targetsMap[b] || 0;
+    });
+    setEditingTargets(initialValues);
+    setIsTargetModalOpen(true);
+  };
+
+  // Lưu KPI lên Supabase
+  const handleSaveTargets = async () => {
+    setSavingTargets(true);
+    try {
+      const payload = BRANCH_LIST.map((branch) => ({
+        month_year: selectedMonthStr,
+        branch,
+        target_vehicles: Number(editingTargets[branch]) || 0,
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error } = await supabase
+        .from('BranchTarget')
+        .upsert(payload, { onConflict: 'month_year,branch' });
+
+      if (error) throw error;
+
+      message.success(`Đã cập nhật chỉ tiêu tháng ${reportDate.format('MM/YYYY')} thành công!`);
+      setTargetsMap({ ...editingTargets });
+      setIsTargetModalOpen(false);
+    } catch (err: any) {
+      message.error('Lỗi lưu chỉ tiêu: ' + err.message);
+    } finally {
+      setSavingTargets(false);
+    }
+  };
+
   const analytics = useMemo(() => {
     let filtered = [...customers];
 
-    // Lọc theo ngày / tháng
     filtered = filtered.filter((item) => {
       const { dayjsObj } = parseDateDetails(item);
       if (!dayjsObj || !dayjsObj.isValid()) return false;
@@ -56,21 +151,17 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
         : dayjsObj.format('YYYY-MM') === reportDate.format('YYYY-MM');
     });
 
-    // Lọc theo chi nhánh chuẩn
     if (reportBranch !== 'all') {
       filtered = filtered.filter((item) => normalizeBranchName(item.branchName || item.chi_nhanh) === reportBranch);
     }
 
-    // Lọc theo hãng / loại
     if (reportBrand !== 'all') {
       filtered = filtered.filter((item) => {
         const isAcquy = checkIsAcquyOrder(item);
         const fullVName = (item.vehicleName || '').trim().toLowerCase();
         const brand = (item.brand || fullVName.split(' ')[0] || '').trim().toLowerCase();
 
-        if (reportBrand === 'Khách mua Acquy') {
-          return isAcquy;
-        }
+        if (reportBrand === 'Khách mua Acquy') return isAcquy;
         return !isAcquy && brand === reportBrand.toLowerCase();
       });
     }
@@ -80,9 +171,8 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
     let totalAcquyRevenue = 0;
     let totalAcquyCount = 0;
 
-    // Khởi tạo 5 chi nhánh
     const branchMap = new Map<string, { vehicleCount: number; vehicleRevenue: number; acquyCount: number; acquyRevenue: number }>();
-    ['Chợ Mới', 'Lấp Vò', 'Lấp Vò 5', 'Mỹ Luông 3', 'Mỹ Luông 4'].forEach((b) =>
+    BRANCH_LIST.forEach((b) =>
       branchMap.set(b, { vehicleCount: 0, vehicleRevenue: 0, acquyCount: 0, acquyRevenue: 0 })
     );
 
@@ -115,18 +205,22 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
 
     const totalRevenue = totalVehicleRevenue + totalAcquyRevenue;
 
-    const branchSummary = Array.from(branchMap.entries()).map(([branch, stat]) => ({
-      branch,
-      vehicleCount: stat.vehicleCount,
-      acquyCount: stat.acquyCount,
-      count: stat.vehicleCount,
-      revenue: stat.vehicleRevenue + stat.acquyRevenue,
-      vehicleRevenue: stat.vehicleRevenue,
-      acquyRevenue: stat.acquyRevenue,
-      percentage: totalVehicleCount > 0 ? Math.round((stat.vehicleCount / totalVehicleCount) * 100) : 0,
-    }));
+    const branchSummary = Array.from(branchMap.entries()).map(([branch, stat]) => {
+      const target = targetsMap[branch] || 0;
+      const completionRate = target > 0 ? Math.round((stat.vehicleCount / target) * 100) : 0;
 
-    // Thống kê theo Hãng & Model
+      return {
+        branch,
+        vehicleCount: stat.vehicleCount,
+        acquyCount: stat.acquyCount,
+        target,
+        completionRate,
+        revenue: stat.vehicleRevenue + stat.acquyRevenue,
+        vehicleRevenue: stat.vehicleRevenue,
+        acquyRevenue: stat.acquyRevenue,
+      };
+    });
+
     const modelMap = new Map<string, { brand: string; model: string; branch: string; count: number; revenue: number; isAcquy: boolean }>();
     filtered.forEach((item) => {
       const isAcquy = checkIsAcquyOrder(item);
@@ -146,7 +240,6 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
     const vehicleModels = modelSummary.filter((m) => !m.isAcquy);
 
     const topModel = vehicleModels.length > 0 ? `${vehicleModels[0].brand} ${vehicleModels[0].model} (${vehicleModels[0].count} xe)` : 'Chưa có';
-
     const sortedBranches = [...branchSummary].sort((a, b) => b.vehicleCount - a.vehicleCount);
     const topBranch = sortedBranches.length > 0 && sortedBranches[0].vehicleCount > 0 ? `${sortedBranches[0].branch} (${sortedBranches[0].vehicleCount} xe)` : 'Chưa có';
 
@@ -159,7 +252,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
       topModel,
       topBranch,
     };
-  }, [customers, reportFilterType, reportDate, reportBranch, reportBrand, parseDateDetails]);
+  }, [customers, reportFilterType, reportDate, reportBranch, reportBrand, targetsMap, parseDateDetails]);
 
   return (
     <div style={{ paddingTop: 8 }}>
@@ -190,11 +283,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
               style={{ width: '100%' }}
               options={[
                 { label: 'Tất cả chi nhánh', value: 'all' },
-                { label: 'Chi nhánh Chợ Mới', value: 'Chợ Mới' },
-                { label: 'Chi nhánh Lấp Vò', value: 'Lấp Vò' },
-                { label: 'Chi nhánh Lấp Vò 5', value: 'Lấp Vò 5' },
-                { label: 'Chi nhánh Mỹ Luông 3', value: 'Mỹ Luông 3' },
-                { label: 'Chi nhánh Mỹ Luông 4', value: 'Mỹ Luông 4' },
+                ...BRANCH_LIST.map((b) => ({ label: `Chi nhánh ${b}`, value: b })),
               ]}
             />
           </Col>
@@ -239,17 +328,83 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
       </Row>
 
       <Row gutter={[16, 16]}>
-        <Col xs={24} lg={10}>
-          <Card title={<Space><ShopOutlined style={{ color: '#1677ff' }} /><span>Doanh Số Theo Chi Nhánh</span></Space>} size="small" style={{ borderRadius: 8, height: '100%' }}>
+        <Col xs={24} lg={11}>
+          <Card
+            title={
+              <Space>
+                <ShopOutlined style={{ color: '#1677ff' }} />
+                <span>Doanh Số Theo Chi Nhánh</span>
+              </Space>
+            }
+            extra={
+              <Button
+                type="primary"
+                size="small"
+                icon={<AimOutlined />}
+                style={{ backgroundColor: '#fa8c16', borderColor: '#fa8c16', fontWeight: 500 }}
+                onClick={handleOpenTargetModal}
+              >
+                Cập Nhật Chỉ Tiêu ({reportDate.format('MM/YYYY')})
+              </Button>
+            }
+            size="small"
+            style={{ borderRadius: 8, height: '100%' }}
+          >
             <Table
               dataSource={analytics.branchSummary}
               rowKey="branch"
               pagination={false}
               size="small"
               columns={[
-                { title: 'Chi Nhánh', dataIndex: 'branch', key: 'branch', render: (b) => <Tag color="blue" style={{ fontWeight: 600 }}>{b}</Tag> },
-                { title: 'Số Xe', dataIndex: 'vehicleCount', key: 'vehicleCount', align: 'center', render: (cnt) => <strong>{cnt} xe</strong> },
-                { title: 'Số Acquy', dataIndex: 'acquyCount', key: 'acquyCount', align: 'center', render: (cnt) => (cnt > 0 ? <Tag color="orange">{cnt} bộ</Tag> : <Text type="secondary">0</Text>) },
+                {
+                  title: 'Chi Nhánh',
+                  dataIndex: 'branch',
+                  key: 'branch',
+                  render: (b) => <Tag color="blue" style={{ fontWeight: 600 }}>{b}</Tag>,
+                },
+                {
+                  title: 'Số Xe',
+                  dataIndex: 'vehicleCount',
+                  key: 'vehicleCount',
+                  align: 'center',
+                  render: (cnt) => <strong>{cnt} xe</strong>,
+                },
+                {
+                  title: 'Số Acquy',
+                  dataIndex: 'acquyCount',
+                  key: 'acquyCount',
+                  align: 'center',
+                  render: (cnt) => (cnt > 0 ? <Tag color="orange">{cnt} bộ</Tag> : <Text type="secondary">0</Text>),
+                },
+                {
+                  title: 'Tỉ Lệ Hoàn Thành',
+                  key: 'completion',
+                  width: 145,
+                  render: (_, record: any) => {
+                    if (!record.target || record.target === 0) {
+                      return <Text type="secondary" style={{ fontSize: 12 }}>Chưa giao KPI</Text>;
+                    }
+                    const isDone = record.completionRate >= 100;
+                    return (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+                          <span style={{ fontWeight: 600, color: isDone ? '#389e0d' : '#1677ff' }}>
+                            {record.vehicleCount}/{record.target} xe
+                          </span>
+                          <span style={{ fontWeight: 700, color: isDone ? '#389e0d' : '#595959' }}>
+                            {record.completionRate}%
+                          </span>
+                        </div>
+                        <Progress
+                          percent={Math.min(record.completionRate, 100)}
+                          size="small"
+                          showInfo={false}
+                          strokeColor={isDone ? '#52c41a' : '#1677ff'}
+                        />
+                      </div>
+                    );
+                  },
+                },
                 {
                   title: 'Doanh Thu',
                   dataIndex: 'revenue',
@@ -269,7 +424,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
           </Card>
         </Col>
 
-        <Col xs={24} lg={14}>
+        <Col xs={24} lg={13}>
           <Card title={<Space><CarOutlined style={{ color: '#52c41a' }} /><span>Chi Tiết Số Bán Theo Hãng & Model</span></Space>} size="small" style={{ borderRadius: 8, height: '100%' }}>
             <Table
               dataSource={analytics.modelSummary}
@@ -298,6 +453,49 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
           </Card>
         </Col>
       </Row>
+
+      {/* MODAL CẬP NHẬT CHỈ TIÊU THÁNG */}
+      <Modal
+        title={
+          <Space>
+            <AimOutlined style={{ color: '#fa8c16' }} />
+            <span>Giao Chỉ Tiêu Doanh Số Tháng {reportDate.format('MM/YYYY')}</span>
+          </Space>
+        }
+        open={isTargetModalOpen}
+        onCancel={() => setIsTargetModalOpen(false)}
+        onOk={handleSaveTargets}
+        confirmLoading={savingTargets}
+        okText="Lưu Chỉ Tiêu"
+        cancelText="Hủy"
+        width={420}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <Text type="secondary">Nhập số lượng xe mục tiêu cho từng cửa hàng trong tháng {reportDate.format('MM/YYYY')}:</Text>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {BRANCH_LIST.map((branch) => (
+            <div key={branch} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Tag color="blue" style={{ fontSize: 13, padding: '4px 10px', fontWeight: 600 }}>
+                {branch}
+              </Tag>
+              <InputNumber
+                min={0}
+                max={9999}
+                addonAfter="xe"
+                style={{ width: 160 }}
+                value={editingTargets[branch] ?? 0}
+                onChange={(val) =>
+                  setEditingTargets((prev) => ({
+                    ...prev,
+                    [branch]: Number(val) || 0,
+                  }))
+                }
+              />
+            </div>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 };
