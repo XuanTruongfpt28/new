@@ -39,14 +39,30 @@ interface SalesAnalyticsProps {
 const BRANCH_LIST = ['Chợ Mới', 'Lấp Vò', 'Lấp Vò 5', 'Mỹ Luông 3', 'Mỹ Luông 4'];
 
 const normalizeBranchName = (rawBranch?: string): string => {
-  if (!rawBranch) return 'Chợ Mới';
+if (!rawBranch) return 'Chợ Mới';
   const str = rawBranch.trim().toLowerCase();
-  if (str.includes('lấp vò 5') || str.includes('lap vo 5')) return 'Lấp Vò 5';
-  if (str.includes('lấp vò') || str.includes('lap vo')) return 'Lấp Vò';
+
+  // 1. Bắt chuẩn Lấp Vò 5 trước (bao gồm cả "Lấp Vò - CN 5", "Lấp Vò 5", "CN 5", "CN5")
+  if (
+    str.includes('lấp vò - cn 5') ||
+    str.includes('lấp vò 5') ||
+    str.includes('lap vo 5') ||
+    str.includes('cn 5') ||
+    str.includes('cn5')
+  ) {
+    return 'Lấp Vò 5';
+  }
+
+  // 2. Sau đó mới bắt Lấp Vò / Lấp Vò - CN 1
+  if (str.includes('lấp vò') || str.includes('lap vo')) {
+    return 'Lấp Vò';
+  }
+
   if (str.includes('chợ mới') || str.includes('cho moi')) return 'Chợ Mới';
   if (str.includes('mỹ luông - cn 3') || str.includes('mỹ luông 3') || str.includes('cn 3') || str.includes('cn3')) return 'Mỹ Luông 3';
   if (str.includes('mỹ luông - cn 4') || str.includes('mỹ luông 4') || str.includes('cn 4') || str.includes('cn4')) return 'Mỹ Luông 4';
   if (str.includes('mỹ luông') || str.includes('my luong')) return 'Mỹ Luông 3';
+
   return rawBranch.trim();
 };
 
