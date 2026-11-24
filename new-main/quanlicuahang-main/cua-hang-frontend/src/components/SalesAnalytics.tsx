@@ -39,7 +39,7 @@ interface SalesAnalyticsProps {
 const BRANCH_LIST = ['Chợ Mới', 'Lấp Vò', 'Lấp Vò 5', 'Mỹ Luông 3', 'Mỹ Luông 4'];
 
 const normalizeBranchName = (rawBranch?: string): string => {
-if (!rawBranch) return 'Chợ Mới';
+  if (!rawBranch) return 'Chợ Mới';
   const str = rawBranch.trim().toLowerCase();
 
   // 1. Bắt chuẩn Lấp Vò 5 trước (bao gồm cả "Lấp Vò - CN 5", "Lấp Vò 5", "CN 5", "CN5")
@@ -88,6 +88,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
   // State lưu chỉ tiêu của tháng đang chọn
   const [targetsMap, setTargetsMap] = useState<Record<string, number>>({});
   const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
+  const [targetModalMonth, setTargetModalMonth] = useState<Dayjs>(dayjs());
   const [editingTargets, setEditingTargets] = useState<Record<string, number>>({});
   const [savingTargets, setSavingTargets] = useState(false);
 
@@ -119,8 +120,28 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
     fetchTargets(selectedMonthStr);
   }, [selectedMonthStr]);
 
+  // Đổi tháng trực tiếp bên trong Modal giao KPI
+  const handleTargetMonthChange = async (newMonth: Dayjs | null) => {
+    if (!newMonth) return;
+    setTargetModalMonth(newMonth);
+    const mStr = newMonth.format('YYYY-MM');
+
+    const { data } = await supabase
+      .from('BranchTarget')
+      .select('*')
+      .eq('month_year', mStr);
+
+    const initialValues: Record<string, number> = {};
+    BRANCH_LIST.forEach((b) => {
+      const found = data?.find((row: any) => row.branch === b);
+      initialValues[b] = found ? Number(found.target_vehicles) || 0 : 0;
+    });
+    setEditingTargets(initialValues);
+  };
+
   // Mở Modal nhập KPI
   const handleOpenTargetModal = () => {
+    setTargetModalMonth(reportDate);
     const initialValues: Record<string, number> = {};
     BRANCH_LIST.forEach((b) => {
       initialValues[b] = targetsMap[b] || 0;
@@ -132,9 +153,10 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
   // Lưu KPI lên Supabase
   const handleSaveTargets = async () => {
     setSavingTargets(true);
+    const modalMonthStr = targetModalMonth.format('YYYY-MM');
     try {
       const payload = BRANCH_LIST.map((branch) => ({
-        month_year: selectedMonthStr,
+        month_year: modalMonthStr,
         branch,
         target_vehicles: Number(editingTargets[branch]) || 0,
         updated_at: new Date().toISOString(),
@@ -146,8 +168,10 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
 
       if (error) throw error;
 
-      message.success(`Đã cập nhật chỉ tiêu tháng ${reportDate.format('MM/YYYY')} thành công!`);
-      setTargetsMap({ ...editingTargets });
+      message.success(`Đã cập nhật chỉ tiêu tháng ${targetModalMonth.format('MM/YYYY')} thành công!`);
+      if (modalMonthStr === selectedMonthStr) {
+        setTargetsMap({ ...editingTargets });
+      }
       setIsTargetModalOpen(false);
     } catch (err: any) {
       message.error('Lỗi lưu chỉ tiêu: ' + err.message);
@@ -237,19 +261,31 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
       };
     });
 
+    // Gom nhóm theo Hãng & Model: Nếu chọn 'all' thì cộng dồn toàn hệ thống, nếu chọn chi nhánh thì hiển thị riêng chi nhánh đó
     const modelMap = new Map<string, { brand: string; model: string; branch: string; count: number; revenue: number; isAcquy: boolean }>();
     filtered.forEach((item) => {
       const isAcquy = checkIsAcquyOrder(item);
       const parts = (item.vehicleName || '').split(' ');
       const brand = isAcquy ? 'Khách' : (item.brand || parts[0] || 'Khác').trim();
       const model = isAcquy ? 'mua Acquy' : (item.model || parts.slice(1).join(' ') || item.vehicleName || 'Chưa rõ model').trim();
-      const branch = normalizeBranchName(item.branchName || item.chi_nhanh);
+      const branchLabel = reportBranch === 'all' ? 'Tất cả chi nhánh' : normalizeBranchName(item.branchName || item.chi_nhanh);
       const val = Number(String(item.price || item.gia_xe || 0).replace(/[^0-9]/g, ''));
       const safeVal = isNaN(val) ? 0 : val;
 
-      const key = `${brand}__${model}__${branch}`;
-      const curr = modelMap.get(key) || { brand, model, branch, count: 0, revenue: 0, isAcquy };
-      modelMap.set(key, { brand, model, branch, count: curr.count + 1, revenue: curr.revenue + safeVal, isAcquy });
+      const key =
+        reportBranch === 'all'
+          ? `${brand.toLowerCase()}__${model.toLowerCase()}`
+          : `${brand.toLowerCase()}__${model.toLowerCase()}__${branchLabel}`;
+
+      const curr = modelMap.get(key) || { brand, model, branch: branchLabel, count: 0, revenue: 0, isAcquy };
+      modelMap.set(key, {
+        brand,
+        model,
+        branch: branchLabel,
+        count: curr.count + 1,
+        revenue: curr.revenue + safeVal,
+        isAcquy,
+      });
     });
 
     const modelSummary = Array.from(modelMap.values()).sort((a, b) => b.count - a.count);
@@ -450,7 +486,12 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
               columns={[
                 { title: 'Hãng Xe', dataIndex: 'brand', key: 'brand', render: (b) => <Tag color="cyan">{b}</Tag> },
                 { title: 'Model Xe', dataIndex: 'model', key: 'model', render: (m) => <strong>{m}</strong> },
-                { title: 'Chi Nhánh Bán', dataIndex: 'branch', key: 'branch', render: (br) => <Tag color="geekblue">{br}</Tag> },
+                {
+                  title: 'Chi Nhánh Bán',
+                  dataIndex: 'branch',
+                  key: 'branch',
+                  render: (br) => <Tag color={br === 'Tất cả chi nhánh' ? 'purple' : 'geekblue'}>{br}</Tag>,
+                },
                 {
                   title: 'Số Lượng',
                   dataIndex: 'count',
@@ -475,7 +516,7 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
         title={
           <Space>
             <AimOutlined style={{ color: '#fa8c16' }} />
-            <span>Giao Chỉ Tiêu Doanh Số Tháng {reportDate.format('MM/YYYY')}</span>
+            <span>Giao Chỉ Tiêu Doanh Số Tháng</span>
           </Space>
         }
         open={isTargetModalOpen}
@@ -486,9 +527,29 @@ export const SalesAnalytics = ({ customers, brandOptions, parseDateDetails }: Sa
         cancelText="Hủy"
         width={420}
       >
-        <div style={{ marginBottom: 12 }}>
-          <Text type="secondary">Nhập số lượng xe mục tiêu cho từng cửa hàng trong tháng {reportDate.format('MM/YYYY')}:</Text>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            backgroundColor: '#fff7e6',
+            padding: '10px 12px',
+            borderRadius: 8,
+            border: '1px solid #ffd591',
+            marginBottom: 16,
+          }}
+        >
+          <Text strong style={{ color: '#d46b08' }}>Chọn tháng áp dụng:</Text>
+          <DatePicker
+            picker="month"
+            format="MM/YYYY"
+            allowClear={false}
+            value={targetModalMonth}
+            onChange={handleTargetMonthChange}
+            style={{ width: 140 }}
+          />
         </div>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {BRANCH_LIST.map((branch) => (
             <div key={branch} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
